@@ -6,9 +6,9 @@
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=ameba.jp
+// @grant        none
 // @updateURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
 // @downloadURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
-// @grant        none
 // ==/UserScript==
 
 
