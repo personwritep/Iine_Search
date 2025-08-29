@@ -1,35 +1,84 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.1
+// @version        0.2
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=ameba.jp
 // @grant        none
-// @updateURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
-// @downloadURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
 // ==/UserScript==
 
-
-
-let user_id=""; // 検索対象のUserIDを記入します 🔴🔴🔴🔴
 
 let slow_open;
 let order=0;
 let stop;
+let search_id=0;
 
 
-document.addEventListener('keyup', (event)=>{
-    if(event.keyCode==120){
+
+
+setTimeout(()=>{
+    let iHEF=document.querySelector('#iineHistoryEntryFrame tbody');
+    if(iHEF){
+        order_environ();
+
+        let monitor0=new MutationObserver(order_environ);
+        monitor0.observe(iHEF, { childList: true });
+    }
+}, 1000);
+
+
+function order_environ(){
+    let cnt=document.querySelectorAll('.iineEntryCnt');
+    for(let k=0; k<cnt.length; k++){
+        cnt[k].onclick=function(event){
+            order_is(k); }}
+
+    function order_is(k){
+        order=k; }
+
+} // order_environ()
+
+
+
+
+document.addEventListener('keydown', (event)=>{
+    if(event.keyCode==119){ //「F8」押下
         event.preventDefault();
-        event.stopImmediatePropagation();
-        if(event.shiftKey || event.ctrlKey){ //「Ctrl+F9」または「Shift+F9」の押下
-            stop=1;
-            un_dark(); }
-        else{ //「F9」キーのみ押下
-            open_all(); }} //「F9」入力
+        get_id(); }
+    if(event.keyCode==120){ //「F9」押下
+        event.preventDefault();
+        set_order(); }
+    if(event.keyCode==27){ //「ESC」押下
+        stop=1;
+        un_dark(); }
 });
+
+
+
+function get_id(){
+    let iLI=document.querySelectorAll('.iineListItem a');
+    if(iLI.length==0){
+        alert(
+            '検索するユーザーを設定するには、\n'+
+            '　➔ 目的のユーザーを含むダイアログを開きます \n'+
+            '　➔「F8」を押してから 目的ユーザーをクリックします' ); }
+    else{
+        for(let i=0; i<iLI.length; i++){
+            iLI[i].onclick=function(event){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                get(iLI[i]); }}}
+
+    function get(target){
+        let link=target.getAttribute('href');
+        if(link){
+            let part=link.split('/');
+            search_id=part[part.length-2];
+            alert('検索するユーザーのID：　'+ search_id); }}
+
+} // get_id()
 
 
 
@@ -45,6 +94,22 @@ function un_dark(){
     if(iELM && iEF){
         if(iEF.clientHeight==0){
             iELM.classList.add('hide'); }}}
+
+
+
+
+function set_order(){
+    if(search_id==0){
+        alert('「F8」を押して検索するユーザーのIDを設定してください'); }
+    else{
+        let iLI=document.querySelectorAll('.iineListItem a');
+        if(iLI.length==0){
+            alert('検索開始のリスト行のダイアログを開いてください'); }
+        else{
+            open_all();
+        }}
+
+} // set_order()
 
 
 
@@ -88,7 +153,7 @@ function open_all(){
         for(let i=0; i<iLI.length; i++){
             let link=iLI[i].getAttribute('href');
             if(link){
-                if(link.includes(user_id)){
+                if(link.includes(search_id)){
                     iLI[i].style.outline='2px solid red';
                     iLI[i].style.outlineOffset='6px';
                     iLI[i].scrollIntoView();
@@ -99,3 +164,4 @@ function open_all(){
     } // search_who()
 
 } // open_all()
+
