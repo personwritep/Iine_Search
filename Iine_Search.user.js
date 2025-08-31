@@ -1,10 +1,10 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.2
+// @version        0.3
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
-// @match        https://blog.ameba.jp/ucs/iine/list.html
+// @match        https://blog.ameba.jp/ucs/iine/list.html*
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=ameba.jp
 // @grant        none
 // @updateURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
@@ -12,12 +12,258 @@
 // ==/UserScript==
 
 
+/* ======== 履歴リスト全体の自動スクロール =========================*/
+
+let target0=document.head; // 監視 target
+let monitor0=new MutationObserver(end_more);
+monitor0.observe(target0, { childList: true }); // 監視開始
+
+end_more();
+
+function end_more(){
+    let senser=0;
+    let next=0;
+    let interval;
+
+    let list_frame=document.querySelector('#iineHistoryContent');
+    if(list_frame){
+        let style=
+            '<style id="imute_style_r">'+
+            '#iineHistoryContent table { position: relative; } '+
+            '#iineHistoryContent tbody { overflow-y: scroll; margin-top: 34px; '+
+            'height: calc( 100vh - 220px); border-bottom: 1px solid #ccc; display: block; } '+
+            '.tableList th { width: inherit; font-size: 14px; padding: 8px 4px 6px; '+
+            'text-align: center !important; background: #f4f4f4; } '+
+            '#iineHistoryContent tr:first-child { position: absolute; z-index: 1; width: 786px; '+
+            'top: 1px; left: -1px; border-left: 1px solid #ccc; border-right: 1px solid #ccc; } '+
+            '#ucsMain #moreLoading { margin: -3px auto; } '+
+            '#iineHistoryUserFrame .tableList th.rightCell { width: 200px; } '+
+            '#ucsMain .moreLinkBottom span { '+
+            'background-position: 0 4px; font-size: 14px; } '+
+            '#iineHistoryEntryFrame:after, #iineHistoryUserFrame:after { '+
+            'content: "▢ Space: 連続スクロール / 停止"; '+
+            'position: absolute; right: 10px; margin: 0; border: 1px solid #aaa; '+
+            'padding: 3px 12px 1px; font: bold 14px Meiryo; color: #888; background: #fff; } ' +
+
+            '.mask { opacity: 0.6; } '+
+            '#iineEntryFrame { position: fixed; top: 8px !important; } '+
+            '#iineEntryHeader .iineListHeaderText { white-space: nowrap; overflow-x: scroll; '+
+            'scrollbar-width: none; } '+
+            '#iineEntryContents { max-height: unset !important; height: calc(100vh - 56px); '+
+            'background: cadetblue; scrollbar-width: none; } '+
+            '.iineListItem { background: #d5e7ed; } '+
+            '#moreLinkBtm { visibility: hidden; } '+
+
+            '#footerAd, #globalFooter { display: none; } '+
+            'html.noscroll { padding-right: 0 !important; } '+
+            'html::-webkit-scrollbar { width: 0 !important; } '+
+            '</style>';
+
+        if(list_frame.querySelector('#imute_style_r')){
+            list_frame.querySelector('#imute_style_r').remove(); } // styleタグ 更新上書き
+        list_frame.insertAdjacentHTML('beforeend', style); }
+
+
+
+    document.addEventListener('keydown', function(event){
+        if(document.querySelector('#iineHistoryEntryFrame')){
+            auto_scroll(event, '#iineHistoryEntryFrame', '#moreEntryLink'); }
+        else if(document.querySelector('#iineHistoryUserFrame')){
+            auto_scroll(event, '#iineHistoryUserFrame', '#moreUserLink'); }});
+
+    function auto_scroll(event, ascroll_box, abutton){
+        if(event.keyCode==32){
+            event.preventDefault();
+            if(active_check()){
+                event.stopImmediatePropagation(); }
+
+            if(next==0 && active_check()){
+                next=1;
+                interval=setInterval(
+                    function(){
+                        go();
+                        stop();
+                        senser+=1;
+                    }, 500); }
+            else{
+                next=0;
+                clearInterval(interval); }
+
+            setTimeout(()=>{
+                view_end();}, 600); } // リスト末尾を表示
+
+
+        function go(){
+            let more=document.querySelector(abutton); // Moreボタン
+            if(more && next==1 && active_check()){
+                monitor0.disconnect();
+                more.click();
+                view_end();
+                senser=0;
+                monitor0.observe(target0, {childList: true, subtree: true}); }}
+
+        function stop(){
+            if(senser>8){
+                next=0;
+                senser=0;
+                clearInterval(interval);
+                view_end(); }}
+
+        function view_end(){
+            let list_body=document.querySelector(ascroll_box +' tbody');
+            if(list_body && active_check()){
+                list_body.scrollBy(0, 1000); }}
+
+        function active_check(){
+            let iine_Mask=document.querySelector('#iineEntryListMask');
+            let mask=window.getComputedStyle(iine_Mask).getPropertyValue('display');
+            if(mask=='block'){
+                return false; }
+            else{
+                return true; }}
+
+    } // auto_scroll()
+
+} //end_more()
+
+
+
+
+/* ======== ダイアログ内のリストの自動スクロール =====================*/
+
+let target2=document.body; // 監視 target
+let monitor2=new MutationObserver(dialog);
+monitor2.observe(target2, { childList: true }); // 監視開始
+
+
+function dialog(){
+
+    smart();
+
+
+    let header=document.querySelector('#iineEntryHeader');
+    let header_count=document.querySelector('#iineEntryHeader .tx_orageA');
+    let header_link=document.querySelector('#iineEntryHeader a');
+
+    if(header_link){
+        header_link.setAttribute('target', '_blank');
+        header_link.onclick=function(event){
+            event.stopImmediatePropagation(); }}
+
+    if(header && header_link){
+        header.style.background='#f7f7f7';
+        header_link.style.color='#06c';
+        header_link.style.pointerEvents='auto';
+        header_count.style.color="red"; }
+
+
+    monitor2.disconnect();
+    end_more_dia();
+    monitor2.observe(target2, {childList: true, subtree: true}); // 監視開始
+
+} // blocker_dia_g()
+
+
+
+function smart(){
+    let headerT=document.querySelector('#iineEntryHeader p');
+    if(headerT){
+        headerT.style.background='none';
+        headerT.style.fontSize='0';
+        headerT.style.padding='10px 30px 8px 0';
+        let title=headerT.querySelector('#iineEntryHeader .tx_bold');
+        if(title){
+            title.style.fontSize='14px';
+            title.style.padding='0 1em 0 0'; }
+        let count=headerT.querySelector('#iineEntryHeader .tx_orageA');
+        if(count){
+            count.style.fontSize='14px';
+            count.style.fontWeight='bold'; }}
+
+} // smart()
+
+
+
+function end_more_dia(){
+    let senser=0;
+    let next=0;
+    let interval;
+    let list_body;
+
+    setTimeout(()=>{
+        let more=document.querySelector('#moreLinkBtm');
+        let item=document.querySelectorAll('#iineEntryContents li');
+        if(more && item.length<31){ // リストを可能なら40行まで開く 🔴🔴
+            more.click();
+        }}, 500);
+
+
+    document.addEventListener('keydown', function(event){
+        if(event.keyCode==32){
+            event.preventDefault();
+            event.stopImmediatePropagation();
+
+            list_body=document.querySelector('#iineEntryContents'); // scroll要素
+            if(list_body){
+                list_body.style.maxHeight='80vh'; }
+
+            if(next==0 && active_check()){
+                next=1;
+                interval=setInterval(
+                    function(){
+                        go();
+                        stop();
+                        senser+=1;
+                    }, 500); }
+            else{
+                next=0;
+                clearInterval(interval); }
+            setTimeout(()=>{
+                view_end(); }, 600); } // リスト末尾を表示
+
+        function go(){
+            let more=document.querySelector('#moreLinkBtm.moreBtm span'); // Moreボタン
+            if(more && next==1 && active_check()){
+                more.click();
+                senser=0; }}
+
+        function stop(){
+            if(senser>4){
+                next=0;
+                senser=0;
+                clearInterval(interval);
+                hide_disp(); }}
+
+        function hide_disp(){
+            view_end(); }});
+
+    function view_end(){
+        let list_body=document.querySelector('#iineEntryContents');
+        if(list_body && active_check()){
+            list_body.scrollBy(0, 1000); }}
+
+    function active_check(){
+        let iine_Mask=document.querySelector('#iineEntryListMask');
+        if(iine_Mask){
+            let mask=window.getComputedStyle(iine_Mask).getPropertyValue('display');
+            if(mask=='block'){
+                return true; } // いいね履歴 ブログページでON
+            else{
+                return false; }} // いいね履歴 ブログページでOFF
+        else{
+            return true; }} // 管理トップでは 常にON
+
+} //end_more_dia()
+
+
+
+
+/* ======== ダイアログ内のリストを検索 ===========================*/
+
 let slow_open;
 let order=0;
 let stop;
 let search_id=0;
-
-
 
 
 setTimeout(()=>{
@@ -44,14 +290,15 @@ function order_environ(){
 
 
 
-
 document.addEventListener('keydown', (event)=>{
     if(event.keyCode==119){ //「F8」押下
         event.preventDefault();
         get_id(); }
+
     if(event.keyCode==120){ //「F9」押下
         event.preventDefault();
         set_order(); }
+
     if(event.keyCode==27){ //「ESC」押下
         stop=1;
         un_dark(); }
@@ -99,7 +346,6 @@ function un_dark(){
 
 
 
-
 function set_order(){
     if(search_id==0){
         alert('「F8」を押して検索するユーザーのIDを設定してください'); }
@@ -108,8 +354,7 @@ function set_order(){
         if(iLI.length==0){
             alert('検索開始のリスト行のダイアログを開いてください'); }
         else{
-            open_all();
-        }}
+            open_all(); }}
 
 } // set_order()
 
@@ -127,10 +372,12 @@ function open_all(){
 
     function work(){
         if(stop==0){
-            cnt[order].click(); }
+            if(cnt[order]){
+                cnt[order].click(); }}
 
         setTimeout(()=>{
             stop=search_who();
+            clear_frame();
         }, 1200);
 
         setTimeout(()=>{
@@ -158,12 +405,28 @@ function open_all(){
                 if(link.includes(search_id)){
                     iLI[i].style.outline='2px solid red';
                     iLI[i].style.outlineOffset='6px';
-                    iLI[i].scrollIntoView();
+                    iLI[i].scrollIntoView({block: "center"});
                     get=1; }}}
 
         return get;
 
     } // search_who()
 
+
+
+    function clear_frame(){
+        let iELF=document.querySelectorAll('#iineEntryListFrame');
+        if(iELF.length>1){
+            for(let k=1; k<iELF.length; k++){
+                iELF[k].remove(); }}
+
+        let iEC=document.querySelectorAll('#iineEntryContener');
+        if(iEC.length>1){
+            for(let k=1; k<iEC.length; k++){
+                iEC[k].remove(); }}
+
+    } // clear_frame()
+
 } // open_all()
+
 
