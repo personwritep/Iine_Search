@@ -1,15 +1,241 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.3
+// @version        0.4
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
-// @match        https://blog.ameba.jp/ucs/iine/list.html*
+// @match        https://blog.ameba.jp/ucs/iine/list.html
 // @icon        https://www.google.com/s2/favicons?sz=64&domain=ameba.jp
 // @grant        none
 // @updateURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
 // @downloadURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
 // ==/UserScript==
+
+
+
+nav();
+
+function nav(){
+    let nav_box=
+        '<div id="navbox">'+
+        '<button id="set_id">検索対象のIDを設定</button>'+
+        '<div id="search_id_box">未設定</div>'+
+        '<button id="action">検索を開始する</button>'+
+        '<div id="support">'+
+        '⚠️ 検索対象が未設定です\n\n'+
+        '検索を機能させるには、検索対象のユーザーIDの設定が必要です'+
+        '</div>'+
+        '</div>'+
+        '<style>'+
+        '#navbox { position: fixed; top: 80px; left: 20px; z-index: 9500; '+
+        'font: normal 16px meiryo; color: #000; width: 280px; padding: 20px; '+
+        'border: 1px solid #888; border-radius: 4px; '+
+        'background: #5bb4d8; box-shadow: 0 20px 100px 0 #00000042; }'+
+        '#set_id, #action { font: normal 16px Meiryo; margin: 0; padding: 10px 16px 8px; '+
+        'background: #e4faff; border: 1px solid #888; border-radius: 4px; cursor: pointer; } '+
+        '#search_id_box { height: 24px; margin: 10px 0 20px; padding: 3px 12px 1px; '+
+        'border: 1px solid #888; border-radius: 4px; background: #fff; '+
+        'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; } '+
+        '#support { min-height: 47px; margin: 40px 0 0; padding: 16px 12px 13px; '+
+        'white-space: break-spaces; border-radius: 4px; background: #fff; } '+
+
+        '.done { box-shadow: 4px 0 0 0 #fff, 16px 0 0 -1px #2196f3; } '+
+        '<style>';
+
+    if(!document.querySelector('#navbox')){
+        document.body.insertAdjacentHTML('beforeend', nav_box); }
+
+    let navbox=document.querySelector('#navbox');
+
+} // nav(ask)
+
+
+
+
+let drive_mode; // ページ更新時の動作モード
+let search_id; // 検索対象のユーザーID
+let search_id_able=0; // ID設定可能な状態
+
+let list_bar; // 記事リストに読込んだ記事行の配列
+let next_target; // ページ内の次の対象記事
+let action;
+
+
+drive_mode='s'
+
+control_pannel();
+
+function control_pannel(){
+
+    let set_id=document.querySelector('#navbox #set_id');
+    if(set_id){
+        set_id.addEventListener('click', function(event){
+            event.preventDefault();
+            get_id(); }); }
+
+
+    action=document.querySelector('#navbox #action');
+    action.addEventListener('click', function(event){
+        event.preventDefault();
+        start_stop(); }); // 常にページの途中から連続処理スタート
+
+
+
+    function start_stop(){
+        if(drive_mode=='s'){
+            let str=
+                '🔴 ダイアログ検索を開始します\n\n'+
+                '▶ リストの行を「Ctrl+Click」\n'+
+                '　 その行以降の検索を開始します\n\n'+
+                '▶「一旦停止 ❚❚」ボタンを押すと\n'+
+                '　 検索停止 / 検索再開 ができます';
+            support(str);
+            drive_mode='c'; // ページ内の連続処理
+            action.textContent='　検索を一旦停止　❚❚';
+            clicked_item(); }
+
+        else if(drive_mode=='c'){ // 連続動作状態の場合
+            drive_mode='p'; // クリックされたら「p」停止モード
+            action.textContent='　検索を再開する　▶';
+            un_dark(); }
+
+        else if(drive_mode=='p'){ // 動作停止状態の場合
+            drive_mode='c'; // クリックされたら連続動作を再開
+            action.textContent='　検索を一旦停止　❚❚';
+            open_dialog(next_target); }
+
+        function clicked_item(){
+            list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+            for(let k=0; k<list_bar.length; k++){
+                list_bar[k].onclick=function(event){
+                    if(event.ctrlKey){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        disable_set_id();
+                        open_dialog(k); }}}}
+
+    } // start_stop()
+
+} // control_pannel()
+
+
+
+function open_dialog(k){
+
+    next_target=k; // 送信完了までは未処理とする
+
+    if(drive_mode=='c'){
+
+        async_task();
+
+        function async_task(){
+            list_bar[k].classList.add('done'); // リストに青バーを表示
+
+            list_bar[k].click();
+
+            setTimeout(()=>{
+                clear_frame();
+            }, 100);
+
+            setTimeout(()=>{
+                if(search_who()){
+                    drive_mode='p'; //「p」停止モード 再検索可能
+                    action.textContent='　検索を再開する　▶';
+                    end_target(); }
+                else{
+                    let iCB=document.querySelector('#iineCloseBtn');
+                    if(iCB){
+                        iCB.click(); }
+                    dark();
+                    end_target(); } // 終了後に次の行へ移行
+
+            }, 2000); // リストのロードタイミング
+
+        } // async_task()
+
+
+
+        function search_who(){
+            let iLI=document.querySelectorAll('.iineListItem a');
+            for(let i=0; i<iLI.length; i++){
+                let link=iLI[i].getAttribute('href');
+                if(link){
+                    if(link.includes(search_id)){
+                        iLI[i].style.outline='2px solid red';
+                        iLI[i].style.outlineOffset='6px';
+                        iLI[i].scrollIntoView({block: "center"});
+                        return true; }}}
+
+        } // search_who()
+
+
+
+        function clear_frame(){
+            let iEC=document.querySelectorAll('#iineEntryContener');
+            if(iEC.length>1){
+                for(let k=1; k<iEC.length; k++){
+                    iEC[k].remove(); }}
+
+            let iELF=document.querySelectorAll('#iineEntryListFrame');
+            if(iELF.length>1){
+                for(let k=1; k<iELF.length; k++){
+                    iELF[k].remove(); }}
+        } // clear_frame()
+
+
+
+        function end_target(){ // 終了処理
+            setTimeout(()=>{
+                next_do(k); }, 10); //⏩
+
+            function next_do(k){
+                next_target=k+1;
+                if(next_target<list_bar.length){
+                    open_dialog(next_target); }
+                else{
+                    setTimeout(()=>{
+                        drive_mode='s'; //「s」停止モード 再検索可能
+                        action.textContent='　検索を再開する　▶';
+                        let str=
+                            '⛔  リスト末尾まで検索しました\n\n'+
+                            '「Space」キーを押して更に過去のリストを読み込み、調査範囲を拡げて検索を再開できます';
+                        support(str);
+                        un_dark();
+                    },200);
+                }}
+
+        } // end_target()
+
+    } // if(drive_mode=='c')
+
+} // open_dialog()
+
+
+
+function dark(){
+    let iELM=document.querySelector('#iineEntryListMask');
+    if(iELM){
+        iELM.classList.remove('hide'); }}
+
+
+function un_dark(){
+    setTimeout(()=>{
+        let iELM=document.querySelector('#iineEntryListMask');
+        let iEF=document.querySelector('#iineEntryFrame');
+        if(iELM && iEF){
+            if(iEF.clientHeight==0){
+                iELM.classList.add('hide'); }}
+    }, 1000);
+    setTimeout(()=>{
+        let iELM=document.querySelector('#iineEntryListMask');
+        let iEF=document.querySelector('#iineEntryFrame');
+        if(iELM && iEF){
+            if(iEF.clientHeight==0){
+                iELM.classList.add('hide'); }}
+    }, 2000); }
+
+
+
 
 
 /* ======== 履歴リスト全体の自動スクロール =========================*/
@@ -31,7 +257,8 @@ function end_more(){
             '<style id="imute_style_r">'+
             '#iineHistoryContent table { position: relative; } '+
             '#iineHistoryContent tbody { overflow-y: scroll; margin-top: 34px; '+
-            'height: calc( 100vh - 220px); border-bottom: 1px solid #ccc; display: block; } '+
+            'height: calc( 100vh - 220px); border-bottom: 1px solid #ccc; display: block; '+
+            'padding-right: 12px; } '+
             '.tableList th { width: inherit; font-size: 14px; padding: 8px 4px 6px; '+
             'text-align: center !important; background: #f4f4f4; } '+
             '#iineHistoryContent tr:first-child { position: absolute; z-index: 1; width: 786px; '+
@@ -52,11 +279,12 @@ function end_more(){
             '#iineEntryContents { max-height: unset !important; height: calc(100vh - 56px); '+
             'background: cadetblue; scrollbar-width: none; } '+
             '.iineListItem { background: #d5e7ed; } '+
+            '.iineListItem a { pointer-events: none; } '+
             '#moreLinkBtm { visibility: hidden; } '+
 
             '#footerAd, #globalFooter { display: none; } '+
+            'html { overflow: hidden; } '+
             'html.noscroll { padding-right: 0 !important; } '+
-            'html::-webkit-scrollbar { width: 0 !important; } '+
             '</style>';
 
         if(list_frame.querySelector('#imute_style_r')){
@@ -193,9 +421,9 @@ function end_more_dia(){
     setTimeout(()=>{
         let more=document.querySelector('#moreLinkBtm');
         let item=document.querySelectorAll('#iineEntryContents li');
-        if(more && item.length<31){ // リストを可能なら40行まで開く 🔴🔴
+        if(more && item.length<43){ // リストを可能なら52行まで開く 🔴🔴
             more.click();
-        }}, 500);
+        }}, 100);
 
 
     document.addEventListener('keydown', function(event){
@@ -258,175 +486,86 @@ function end_more_dia(){
 
 
 
-/* ======== ダイアログ内のリストを検索 ===========================*/
 
-let slow_open;
-let order=0;
-let stop;
-let search_id=0;
+/* ======== 検索対象のユーザーIDを取得 ===========================*/
 
 
-setTimeout(()=>{
-    let iHEF=document.querySelector('#iineHistoryEntryFrame tbody');
-    if(iHEF){
-        order_environ();
-
-        let monitor0=new MutationObserver(order_environ);
-        monitor0.observe(iHEF, { childList: true });
-    }
-}, 1000);
-
-
-function order_environ(){
-    let cnt=document.querySelectorAll('.iineEntryCnt');
-    for(let k=0; k<cnt.length; k++){
-        cnt[k].onclick=function(event){
-            order_is(k); }}
-
-    function order_is(k){
-        order=k; }
-
-} // order_environ()
+function support(str){
+    let support=document.querySelector('#support');
+    if(support){
+        support.textContent=str; }}
 
 
 
-document.addEventListener('keydown', (event)=>{
-    if(event.keyCode==119){ //「F8」押下
-        event.preventDefault();
-        get_id(); }
-
-    if(event.keyCode==120){ //「F9」押下
-        event.preventDefault();
-        set_order(); }
-
-    if(event.keyCode==27){ //「ESC」押下
-        stop=1;
-        un_dark(); }
-});
+function disable_set_id(){
+    search_id_able=0;
+    support('　'); }
 
 
 
 function get_id(){
-    let iLI=document.querySelectorAll('.iineListItem a');
-    if(iLI.length==0){
-        alert(
-            '検索するユーザーを設定するには、\n'+
-            '　➔ 目的のユーザーを含むダイアログを開きます \n'+
-            '　➔「F8」を押してから 目的ユーザーをクリックします' ); }
-    else{
-        for(let i=0; i<iLI.length; i++){
-            iLI[i].onclick=function(event){
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                get(iLI[i]); }}}
+    search_id_able=1;
 
-    function get(target){
-        let link=target.getAttribute('href');
-        if(link){
-            let part=link.split('/');
-            search_id=part[part.length-2];
-            alert('検索するユーザーのID：　'+ search_id); }}
+    let iine_Mask=document.querySelector('#iineEntryListMask');
+    if(iine_Mask){
+        let monitor1=new MutationObserver(get);
+        monitor1.observe(iine_Mask, { attributes: true });
+
+        get();
+
+        function get(){
+            setTimeout(()=>{
+                if(search_id_able==1){
+                    let iLI=document.querySelectorAll('.iineListItem a');
+                    if(iLI.length==0){
+                        let ask=
+                            '検索するユーザーを設定するには\n\n'+
+                            '❶ 検索対象を含む記事をクリック\n'+
+                            '　 その記事のダイアログを開く\n\n'+
+                            '❷ 検索対象の行をクリックする';
+                        support(ask); }
+                    else{
+                        get_item(); }
+                }
+            }, 200); // リストロードのタイミング
+
+
+            function get_item(dia){
+                document.addEventListener('click', function(event){
+                    if(search_id_able==1){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        let elem=document.elementFromPoint(event.clientX, event.clientY);
+                        if(elem){
+                            let list_elem=elem.closest('li');
+                            if(list_elem.classList.contains('iineListItem')){
+                                get(list_elem); }}}});
+
+                function get(target){
+                    let link=target.querySelector('a');
+                    if(link){
+                        let link_href=link.getAttribute('href');
+                        if(link_href){
+                            let part=link_href.split('/');
+                            search_id=part[part.length-2];
+                            let search_id_box=document.querySelector('#search_id_box');
+                            if(search_id_box){
+                                search_id_box.textContent=search_id;
+                                clear_line();
+                                target.style.outline='2px solid #2196f3';
+                                target.style.outlineOffset='-3px';
+                                disable_set_id();
+                                monitor1.disconnect(); }}}}
+
+                function clear_line(){
+                    let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
+                    for(let k=0; k<item.length; k++){
+                        item[k].style.outline=''; }}
+
+            } // get_item(dia)
+
+        } // get()
+
+    } // iine_Mask
 
 } // get_id()
-
-
-
-function dark(){
-    let iELM=document.querySelector('#iineEntryListMask');
-    if(iELM){
-        iELM.classList.remove('hide'); }}
-
-
-function un_dark(){
-    let iELM=document.querySelector('#iineEntryListMask');
-    let iEF=document.querySelector('#iineEntryFrame');
-    if(iELM && iEF){
-        if(iEF.clientHeight==0){
-            iELM.classList.add('hide'); }}}
-
-
-
-function set_order(){
-    if(search_id==0){
-        alert('「F8」を押して検索するユーザーのIDを設定してください'); }
-    else{
-        let iLI=document.querySelectorAll('.iineListItem a');
-        if(iLI.length==0){
-            alert('検索開始のリスト行のダイアログを開いてください'); }
-        else{
-            open_all(); }}
-
-} // set_order()
-
-
-
-function open_all(){
-    let iCB=document.querySelector('#iineCloseBtn');
-    let cnt=document.querySelectorAll('.iineEntryCnt');
-
-    stop=0;
-    iCB.click();
-    dark();
-
-    let slow_open=setInterval(work, 2000);
-
-    function work(){
-        if(stop==0){
-            if(cnt[order]){
-                cnt[order].click(); }}
-
-        setTimeout(()=>{
-            stop=search_who();
-            clear_frame();
-        }, 1200);
-
-        setTimeout(()=>{
-            if(stop==0){
-                iCB.click();
-                dark(); }
-        }, 1600);
-
-        if(order>cnt.length || stop==1){
-            clearInterval(slow_open);
-            order -=1; }
-
-        order +=1;
-
-    } // work()
-
-
-
-    function search_who(){
-        let get=0;
-        let iLI=document.querySelectorAll('.iineListItem a');
-        for(let i=0; i<iLI.length; i++){
-            let link=iLI[i].getAttribute('href');
-            if(link){
-                if(link.includes(search_id)){
-                    iLI[i].style.outline='2px solid red';
-                    iLI[i].style.outlineOffset='6px';
-                    iLI[i].scrollIntoView({block: "center"});
-                    get=1; }}}
-
-        return get;
-
-    } // search_who()
-
-
-
-    function clear_frame(){
-        let iELF=document.querySelectorAll('#iineEntryListFrame');
-        if(iELF.length>1){
-            for(let k=1; k<iELF.length; k++){
-                iELF[k].remove(); }}
-
-        let iEC=document.querySelectorAll('#iineEntryContener');
-        if(iEC.length>1){
-            for(let k=1; k<iEC.length; k++){
-                iEC[k].remove(); }}
-
-    } // clear_frame()
-
-} // open_all()
-
-
