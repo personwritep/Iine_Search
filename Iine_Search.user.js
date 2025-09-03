@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.4
+// @version        0.5
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -10,6 +10,16 @@
 // @updateURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
 // @downloadURL        https://github.com/personwritep/Iine_Search/raw/main/Iine_Search.user.js
 // ==/UserScript==
+
+
+/* ======== 操作パネルと自動検索ツール ===========================*/
+
+let drive_mode='s'; // ページ更新時の動作モード
+let search_id; // 検索対象のユーザーID
+let search_id_able=0; // ID設定可能な状態
+let list_bar; // 記事リストに読込んだ記事行の配列
+let next_target; // ページ内の次の対象記事
+let action;
 
 
 
@@ -27,7 +37,7 @@ function nav(){
         '</div>'+
         '</div>'+
         '<style>'+
-        '#navbox { position: fixed; top: 80px; left: 20px; z-index: 9500; '+
+        '#navbox { position: fixed; top: 132px; left: 20px; z-index: 9500; '+
         'font: normal 16px meiryo; color: #000; width: 280px; padding: 20px; '+
         'border: 1px solid #888; border-radius: 4px; '+
         'background: #5bb4d8; box-shadow: 0 20px 100px 0 #00000042; }'+
@@ -45,28 +55,47 @@ function nav(){
     if(!document.querySelector('#navbox')){
         document.body.insertAdjacentHTML('beforeend', nav_box); }
 
-    let navbox=document.querySelector('#navbox');
-
 } // nav(ask)
 
 
 
+setTimeout(()=>{
+    let table=document.querySelector('#iineHistoryEntryFrame tbody');
+    if(table){
+        let monitor=new MutationObserver(clicked_item);
+        monitor.observe(table, {childList: true});
 
-let drive_mode; // ページ更新時の動作モード
-let search_id; // 検索対象のユーザーID
-let search_id_able=0; // ID設定可能な状態
-
-let list_bar; // 記事リストに読込んだ記事行の配列
-let next_target; // ページ内の次の対象記事
-let action;
+        clicked_item(); }
+}, 1000);
 
 
-drive_mode='s'
+
+function clicked_item(){
+    list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+    for(let k=0; k<list_bar.length; k++){
+        list_bar[k].onclick=function(event){
+            if(event.ctrlKey){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                disable_set_id();
+                started_c();
+                open_dialog(k); }}}
+
+    function started_c(){
+        drive_mode='c'; // ページ内の連続処理
+        action.textContent='　検索を一旦停止　❚❚';
+        let str=
+            '「❚❚」ボタンを押す：一旦停止\n'+
+            '「▶」ボタンを押す：検索再開\n\n'+
+            ' 任意のリスト行を「Ctrl+Click」\n'+
+            ' 　➔ その行から検索を開始';
+        support(str); }}
+
+
 
 control_pannel();
 
 function control_pannel(){
-
     let set_id=document.querySelector('#navbox #set_id');
     if(set_id){
         set_id.addEventListener('click', function(event){
@@ -80,7 +109,6 @@ function control_pannel(){
         start_stop(); }); // 常にページの途中から連続処理スタート
 
 
-
     function start_stop(){
         if(drive_mode=='s'){
             let str=
@@ -90,9 +118,7 @@ function control_pannel(){
                 '▶「一旦停止 ❚❚」ボタンを押すと\n'+
                 '　 検索停止 / 検索再開 ができます';
             support(str);
-            drive_mode='c'; // ページ内の連続処理
-            action.textContent='　検索を一旦停止　❚❚';
-            clicked_item(); }
+            action.textContent='開始行を「Ctrl+Click」します'; }
 
         else if(drive_mode=='c'){ // 連続動作状態の場合
             drive_mode='p'; // クリックされたら「p」停止モード
@@ -104,16 +130,6 @@ function control_pannel(){
             action.textContent='　検索を一旦停止　❚❚';
             open_dialog(next_target); }
 
-        function clicked_item(){
-            list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
-            for(let k=0; k<list_bar.length; k++){
-                list_bar[k].onclick=function(event){
-                    if(event.ctrlKey){
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        disable_set_id();
-                        open_dialog(k); }}}}
-
     } // start_stop()
 
 } // control_pannel()
@@ -121,37 +137,30 @@ function control_pannel(){
 
 
 function open_dialog(k){
-
-    next_target=k; // 送信完了までは未処理とする
+    next_target=k; // この段階は未処理
 
     if(drive_mode=='c'){
+        list_bar[k].classList.add('done'); // リストに青バーを表示
+        list_bar[k].click();
 
-        async_task();
 
-        function async_task(){
-            list_bar[k].classList.add('done'); // リストに青バーを表示
+        setTimeout(()=>{
+            clear_frame();
+        }, 100);
 
-            list_bar[k].click();
+        setTimeout(()=>{
+            if(search_who()){
+                drive_mode='p'; //「p」停止モード
+                action.textContent='　検索を再開する　▶';
+                end_target(); }
+            else{
+                let iCB=document.querySelector('#iineCloseBtn');
+                if(iCB){
+                    iCB.click(); }
+                dark();
+                end_target(); } // 終了後に次の行へ移行
 
-            setTimeout(()=>{
-                clear_frame();
-            }, 100);
-
-            setTimeout(()=>{
-                if(search_who()){
-                    drive_mode='p'; //「p」停止モード 再検索可能
-                    action.textContent='　検索を再開する　▶';
-                    end_target(); }
-                else{
-                    let iCB=document.querySelector('#iineCloseBtn');
-                    if(iCB){
-                        iCB.click(); }
-                    dark();
-                    end_target(); } // 終了後に次の行へ移行
-
-            }, 2000); // リストのロードタイミング
-
-        } // async_task()
+        }, 2000); // リストのロードタイミング
 
 
 
@@ -198,7 +207,8 @@ function open_dialog(k){
                         action.textContent='　検索を再開する　▶';
                         let str=
                             '⛔  リスト末尾まで検索しました\n\n'+
-                            '「Space」キーを押して更に過去のリストを読み込み、調査範囲を拡げて検索を再開できます';
+                            '「Space」キーを押して更に過去のリストを読み込み、'+
+                            '調査範囲を拡げて検索を再開できます';
                         support(str);
                         un_dark();
                     },200);
@@ -234,6 +244,91 @@ function un_dark(){
                 iELM.classList.add('hide'); }}
     }, 2000); }
 
+
+
+function support(str){
+    let support=document.querySelector('#support');
+    if(support){
+        support.textContent=str; }}
+
+
+
+function disable_set_id(){
+    search_id_able=0;
+    let str=
+        '検索対象のIDが設定されました\n'+
+        '現在のダイアログを閉じてください';
+    support(str); }
+
+
+
+function get_id(){
+    search_id_able=1;
+
+    let iine_Mask=document.querySelector('#iineEntryListMask');
+    if(iine_Mask){
+        let monitor1=new MutationObserver(get);
+        monitor1.observe(iine_Mask, { attributes: true });
+
+        get();
+
+        function get(){
+            setTimeout(()=>{
+                if(search_id_able==1){
+                    let iLI=document.querySelectorAll('.iineListItem a');
+                    if(iLI.length==0){
+                        let ask=
+                            '検索するユーザーを設定するには\n\n'+
+                            '❶ 検索対象を含む記事をクリック\n'+
+                            '　 その記事のダイアログを開く\n\n'+
+                            '❷ 検索対象の行をクリックする';
+                        support(ask); }
+                    else{
+                        get_item(); }
+                }
+            }, 200); // リストロードのタイミング
+
+
+            function get_item(dia){
+                document.addEventListener('click', function(event){
+                    if(search_id_able==1){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        let elem=document.elementFromPoint(event.clientX, event.clientY);
+                        if(elem){
+                            let list_elem=elem.closest('li');
+                            if(list_elem){
+                                if(list_elem.classList.contains('iineListItem')){
+                                    get(list_elem); }}}}});
+
+                function get(target){
+                    let link=target.querySelector('a');
+                    if(link){
+                        let link_href=link.getAttribute('href');
+                        if(link_href){
+                            let part=link_href.split('/');
+                            search_id=part[part.length-2];
+                            let search_id_box=document.querySelector('#search_id_box');
+                            if(search_id_box){
+                                search_id_box.textContent=search_id;
+                                clear_line();
+                                target.style.outline='2px solid #2196f3';
+                                target.style.outlineOffset='-3px';
+                                disable_set_id();
+                                monitor1.disconnect(); }}}}
+
+                function clear_line(){
+                    let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
+                    for(let k=0; k<item.length; k++){
+                        item[k].style.outline=''; }}
+
+            } // get_item(dia)
+
+        } // get()
+
+    } // iine_Mask
+
+} // get_id()
 
 
 
@@ -483,89 +578,3 @@ function end_more_dia(){
 
 } //end_more_dia()
 
-
-
-
-
-/* ======== 検索対象のユーザーIDを取得 ===========================*/
-
-
-function support(str){
-    let support=document.querySelector('#support');
-    if(support){
-        support.textContent=str; }}
-
-
-
-function disable_set_id(){
-    search_id_able=0;
-    support('　'); }
-
-
-
-function get_id(){
-    search_id_able=1;
-
-    let iine_Mask=document.querySelector('#iineEntryListMask');
-    if(iine_Mask){
-        let monitor1=new MutationObserver(get);
-        monitor1.observe(iine_Mask, { attributes: true });
-
-        get();
-
-        function get(){
-            setTimeout(()=>{
-                if(search_id_able==1){
-                    let iLI=document.querySelectorAll('.iineListItem a');
-                    if(iLI.length==0){
-                        let ask=
-                            '検索するユーザーを設定するには\n\n'+
-                            '❶ 検索対象を含む記事をクリック\n'+
-                            '　 その記事のダイアログを開く\n\n'+
-                            '❷ 検索対象の行をクリックする';
-                        support(ask); }
-                    else{
-                        get_item(); }
-                }
-            }, 200); // リストロードのタイミング
-
-
-            function get_item(dia){
-                document.addEventListener('click', function(event){
-                    if(search_id_able==1){
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        let elem=document.elementFromPoint(event.clientX, event.clientY);
-                        if(elem){
-                            let list_elem=elem.closest('li');
-                            if(list_elem.classList.contains('iineListItem')){
-                                get(list_elem); }}}});
-
-                function get(target){
-                    let link=target.querySelector('a');
-                    if(link){
-                        let link_href=link.getAttribute('href');
-                        if(link_href){
-                            let part=link_href.split('/');
-                            search_id=part[part.length-2];
-                            let search_id_box=document.querySelector('#search_id_box');
-                            if(search_id_box){
-                                search_id_box.textContent=search_id;
-                                clear_line();
-                                target.style.outline='2px solid #2196f3';
-                                target.style.outlineOffset='-3px';
-                                disable_set_id();
-                                monitor1.disconnect(); }}}}
-
-                function clear_line(){
-                    let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
-                    for(let k=0; k<item.length; k++){
-                        item[k].style.outline=''; }}
-
-            } // get_item(dia)
-
-        } // get()
-
-    } // iine_Mask
-
-} // get_id()
