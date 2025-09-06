@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.6
+// @version        0.7
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -196,6 +196,14 @@ function control_pannel(){
 
     } // start_stop()
 
+
+    document.addEventListener('keydown', function(event){
+        if(event.keyCode==13){
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            if(action){
+                action.click(); }}});
+
 } // control_pannel()
 
 
@@ -205,6 +213,7 @@ function open_dialog(k){
 
     if(drive_mode=='c'){
         list_bar[k].classList.add('done'); // リストに青バーを表示
+        list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
         list_bar[k].click();
 
 
@@ -662,4 +671,3 @@ function end_more_dia(){
             return true; }} // 管理トップでは 常にON
 
 } //end_more_dia()
-
