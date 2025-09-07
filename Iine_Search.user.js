@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.7
+// @version        0.8
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -30,6 +30,8 @@ function nav(){
     let nav_box=
         '<div id="navbox">'+
         '<button id="set_id">検索対象のIDを設定</button>'+
+        '<button id="set_ok">IDを設定する</button>'+
+        '<button id="set_cancel">中止</button>'+
         '<div class="nav_in">'+
         '<button class="is_help nav_sw">？</button>'+
         '<button class="s_l nav_sw">▲</button>'+
@@ -55,8 +57,11 @@ function nav(){
         '.is_help { line-height: 30px; border-radius: 40px; margin-right: 5px; }'+
         '.s_l { line-height: 28px; border-radius: 4px; }'+
         '.is_help:hover, .s_l:hover { background: #fff; }'+
-        '#set_id, #action { font: normal 16px Meiryo; margin: 0; padding: 10px 16px 8px; '+
-        'background: #e4faff; border: 1px solid #888; border-radius: 4px; cursor: pointer; }'+
+        '#set_id, #set_ok, #set_cancel, #action { font: normal 16px Meiryo; '+
+        'padding: 10px 16px 8px; background: #e4faff; border: 1px solid #888; '+
+        'border-radius: 4px; cursor: pointer; }'+
+        '#set_ok { padding: 10px 12px 8px; display: none; }'+
+        '#set_cancel { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
         '#search_id_box { height: 24px; margin: 10px 0 20px; padding: 3px 12px 1px; '+
         'border: 1px solid #888; border-radius: 4px; background: #fff; '+
         'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
@@ -97,6 +102,13 @@ function nav(){
                 l_style.disabled=false; }}}
 
 
+    id_check();
+
+} // nav(ask)
+
+
+
+function id_check(){
     let search_id_box=document.querySelector('#search_id_box');
     if(search_id_box){
         search_id=get_cookie('Iine_ID');
@@ -115,7 +127,7 @@ function nav(){
                 '<p>検索を機能させるには、検索対象のユーザーIDの設定が必要です</p>';
             support(str); }}
 
-} // nav(ask)
+} // id_check()
 
 
 
@@ -137,20 +149,23 @@ function clicked_item(){
             if(event.ctrlKey){
                 event.preventDefault();
                 event.stopImmediatePropagation();
-                disable_set_id();
-                started_c();
-                open_dialog(k); }}}
+                wild_search(k); }}}
 
-    function started_c(){
-        drive_mode='c'; // ページ内の連続処理
-        action.textContent='　検索を一旦停止　❚❚';
-        let str=
-            '<p>「❚❚」ボタンを押す：一旦停止</p>'+
-            '<p>「▶」ボタンを押す：検索再開</p>'+
-            '<p class="half">　</p>'+
-            '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
-            '<p> 　➔ その行から検索を開始</p>';
-        support(str); }}
+    function wild_search(k){
+        if(search_id_able==0){
+            drive_mode='c'; // ページ内の連続処理
+            action.textContent='　検索を一旦停止　❚❚';
+            let str=
+                '<p>「❚❚」ボタンを押す：一旦停止</p>'+
+                '<p>「▶」ボタンを押す：検索再開</p>'+
+                '<p class="half">　</p>'+
+                '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
+                '<p> 　➔ その行から検索を開始</p>';
+            support(str);
+            not_set(1);
+            open_dialog(k); }}
+
+} // clicked_item()
 
 
 
@@ -161,13 +176,43 @@ function control_pannel(){
     if(set_id){
         set_id.addEventListener('click', function(event){
             event.preventDefault();
-            get_id(); }); }
+            if(search_id_able==0){
+                search_id_able=1;
+                action.disabled=true;
+                set_id.textContent='IDの設定を中止';
+
+                let str=
+                    '<p>検索するユーザーを設定するには</P>'+
+                    '<p class="half">　</p>'+
+                    '<p>❶ 検索対象を含む記事を「<b>Click</b>」</P>'+
+                    '<p>　 その記事のダイアログを開く</P>'+
+                    '<p class="half">　</p>'+
+                    '<p>❷ 検索対象の行を「<b>Click</b>」する</P>'+
+                    '<p>　</p>'+
+                    '<p>操作を中止して元の状態に戻るには「IDの設定を中止」を押します</P>';
+                support(str);
+
+                get_id(); }
+            else{
+                search_id_able=0;
+                action.disabled=false;
+                set_id.textContent='検索対象のIDを設定';
+                let str=
+                    '<p>「❚❚」ボタンを押す：一旦停止</p>'+
+                    '<p>「▶」ボタンを押す：検索再開</p>'+
+                    '<p class="half">　</p>'+
+                    '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
+                    '<p> 　➔ その行から検索を開始</p>';
+                support(str);
+            }
+        }); }
+
 
 
     action=document.querySelector('#navbox #action');
     action.addEventListener('click', function(event){
         event.preventDefault();
-        start_stop(); }); // 常にページの途中から連続処理スタート
+        start_stop(); }); // 処理のコントロール
 
 
     function start_stop(){
@@ -187,11 +232,13 @@ function control_pannel(){
         else if(drive_mode=='c'){ // 連続動作状態の場合
             drive_mode='p'; // クリックされたら「p」停止モード
             action.textContent='　検索を再開する　▶';
+            not_set(0);
             un_dark(); }
 
         else if(drive_mode=='p'){ // 動作停止状態の場合
             drive_mode='c'; // クリックされたら連続動作を再開
             action.textContent='　検索を一旦停止　❚❚';
+            not_set(1);
             open_dialog(next_target); }
 
     } // start_stop()
@@ -205,6 +252,16 @@ function control_pannel(){
                 action.click(); }}});
 
 } // control_pannel()
+
+
+
+function not_set(n){
+    let set_id=document.querySelector('#navbox #set_id');
+    if(set_id){
+        if(n==0){
+            set_id.disabled=false; }
+        else{
+            set_id.disabled=true; }}}
 
 
 
@@ -225,6 +282,7 @@ function open_dialog(k){
             if(search_who()){
                 drive_mode='p'; //「p」停止モード
                 action.textContent='　検索を再開する　▶';
+                not_set(0);
                 end_target(); }
             else{
                 close_dialog();
@@ -283,6 +341,7 @@ function open_dialog(k){
                             '<p>「<b>Space</b>」キーを押して更に過去のリストを読み込み、'+
                             '調査範囲を拡げて検索を再開できます</p>';
                         support(str);
+                        not_set(0);
                         un_dark();
                     },200);
                 }}
@@ -332,8 +391,10 @@ function support(str){
 
 
 
-function disable_set_id(){
-    search_id_able=0;
+function end_set_id(){
+    let set_id=document.querySelector('#navbox #set_id');
+    if(set_id){
+        set_id.textContent='検索対象のIDを設定'; }
     let str=
         '<p>検索対象のIDが設定されました</P>'+
         '<p>現在のダイアログを閉じてください</P>';
@@ -342,35 +403,24 @@ function disable_set_id(){
 
 
 function get_id(){
-    search_id_able=1;
 
     let iine_Mask=document.querySelector('#iineEntryListMask');
     if(iine_Mask){
-        let monitor1=new MutationObserver(get);
+        let monitor1=new MutationObserver(get_mode);
         monitor1.observe(iine_Mask, { attributes: true });
 
-        get();
+        get_mode();
 
-        function get(){
+        function get_mode(){
             setTimeout(()=>{
                 if(search_id_able==1){
                     let iLI=document.querySelectorAll('.iineListItem a');
-                    if(iLI.length==0){
-                        let str=
-                            '<p>検索するユーザーを設定するには</P>'+
-                            '<p class="half">　</p>'+
-                            '<p>❶ 検索対象を含む記事を「<b>Click</b>」</P>'+
-                            '<p>　 その記事のダイアログを開く</P>'+
-                            '<p class="half">　</p>'+
-                            '<p>❷ 検索対象の行を「<b>Click</b>」する</P>';
-                        support(str); }
-                    else{
-                        get_item(); }
-                }
+                    if(iLI.length!=0){
+                        get_item(); }}
             }, 200); // リストロードのタイミング
 
 
-            function get_item(dia){
+            function get_item(){
                 document.addEventListener('click', function(event){
                     if(search_id_able==1){
                         event.preventDefault();
@@ -382,31 +432,88 @@ function get_id(){
                                 if(list_elem.classList.contains('iineListItem')){
                                     get(list_elem); }}}}});
 
+
                 function get(target){
                     let link=target.querySelector('a');
                     if(link){
                         let link_href=link.getAttribute('href');
                         if(link_href){
                             let part=link_href.split('/');
-                            search_id=part[part.length-2];
+                            let search_id_new=part[part.length-2];
                             let search_id_box=document.querySelector('#search_id_box');
                             if(search_id_box){
-                                search_id_box.textContent=search_id;
-                                document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800';
                                 clear_line();
                                 target.style.outline='2px solid #2196f3';
                                 target.style.outlineOffset='-3px';
-                                disable_set_id();
-                                monitor1.disconnect(); }}}}
+
+                                let set_id=document.querySelector('#navbox #set_id');
+                                let set_ok=document.querySelector('#navbox #set_ok');
+                                let set_cancel=document.querySelector('#navbox #set_cancel');
+                                if(set_id && set_ok && set_cancel){
+                                    set_id.style.display='none';
+                                    set_ok.style.display='inline-block';
+                                    set_cancel.style.display='inline-block';
+
+                                    let str=
+                                        '<p><ic2>🔴</ic2> 検索対象のIDを変更します</P>'+
+                                        '<p class="half">　</p>'+
+                                        '<p>上枠のこれまでの検索対象のIDはリセットされます　'+
+                                        '必要ならコピーして保存してください</P>'+
+                                        '<p class="half">　</p>'+
+                                        '<p>新しい検索対象のID： </P>'+
+                                        '<p>'+ search_id_new +'</P>'+
+                                        '<p class="half">　</p>'+
+                                        '<p>「IDを設定する」を押すとIDを更新します　また、'+
+                                        '検索経過を示す「青マーク」がリセットされます</P>';
+                                    support(str);
+
+
+                                    set_ok.onclick=()=>{
+                                        set_id.style.display='inline-block';
+                                        set_ok.style.display='none';
+                                        set_cancel.style.display='none';
+
+                                        search_id=search_id_new;
+                                        search_id_box.textContent=search_id;
+                                        document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800';
+                                        end_set_id();
+                                        clear_list_done();
+
+                                        search_id_able=0;
+                                        action.disabled=false;
+                                        drive_mode='s'; //「s」停止モード 再検索可能
+                                        monitor1.disconnect(); }
+
+
+                                    set_cancel.onclick=()=>{
+                                        set_id.style.display='inline-block';
+                                        set_ok.style.display='none';
+                                        set_cancel.style.display='none';
+
+                                        clear_line();
+                                        set_id.click();
+                                        monitor1.disconnect(); }
+
+                                } // if(set_id && set_ok && set_cancel)
+                            }}}
+
+                } // get()
+
 
                 function clear_line(){
                     let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
                     for(let k=0; k<item.length; k++){
                         item[k].style.outline=''; }}
 
-            } // get_item(dia)
 
-        } // get()
+                function clear_list_done(){
+                    list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+                    for(let k=0; k<list_bar.length; k++){
+                        list_bar[k].classList.remove('done'); }} // リストの青バーを削除
+
+            } // get_item()
+
+        } // get_mode()
 
     } // iine_Mask
 
@@ -671,3 +778,4 @@ function end_more_dia(){
             return true; }} // 管理トップでは 常にON
 
 } //end_more_dia()
+
