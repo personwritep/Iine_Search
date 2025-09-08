@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.8
+// @version        0.9
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -38,11 +38,7 @@ function nav(){
         '</div>'+
         '<div id="search_id_box">未設定</div>'+
         '<button id="action">検索を開始する</button>'+
-        '<div id="support">'+
-        '<p><ic1>⚠️</ic1> 検索対象のIDが未設定です</p>'+
-        '<p class="half">　</p>'+
-        '<p>検索を機能させるには、検索対象のユーザーIDの設定が必要です</p>'+
-        '</div>'+
+        '<div id="support"></div>'+
         '</div>'+
         '<style>'+
         '#ucsContent { margin: 0 20px 0 auto; }'+
@@ -176,6 +172,7 @@ function control_pannel(){
     if(set_id){
         set_id.addEventListener('click', function(event){
             event.preventDefault();
+            event.stopImmediatePropagation();
             if(search_id_able==0){
                 search_id_able=1;
                 action.disabled=true;
@@ -191,7 +188,6 @@ function control_pannel(){
                     '<p>　</p>'+
                     '<p>操作を中止して元の状態に戻るには「IDの設定を中止」を押します</P>';
                 support(str);
-
                 get_id(); }
             else{
                 search_id_able=0;
@@ -203,10 +199,22 @@ function control_pannel(){
                     '<p class="half">　</p>'+
                     '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
                     '<p> 　➔ その行から検索を開始</p>';
-                support(str);
-            }
+                support(str); }
         }); }
 
+
+    let iine_Mask=document.querySelector('#iineEntryListMask');
+    if(iine_Mask){
+        let monitor1=new MutationObserver(get_end);
+        monitor1.observe(iine_Mask, { attributes: true });
+
+        function get_end(){
+            if(search_id_able==1){
+                if(iine_Mask.classList.contains('hide')){
+                    decision(0);
+                    let set_id=document.querySelector('#navbox #set_id');
+                    if(set_id){
+                        set_id.click(); }}}}}
 
 
     action=document.querySelector('#navbox #action');
@@ -403,121 +411,147 @@ function end_set_id(){
 
 
 function get_id(){
-
-    let iine_Mask=document.querySelector('#iineEntryListMask');
-    if(iine_Mask){
-        let monitor1=new MutationObserver(get_mode);
-        monitor1.observe(iine_Mask, { attributes: true });
-
-        get_mode();
-
-        function get_mode(){
-            setTimeout(()=>{
-                if(search_id_able==1){
-                    let iLI=document.querySelectorAll('.iineListItem a');
-                    if(iLI.length!=0){
-                        get_item(); }}
-            }, 200); // リストロードのタイミング
-
-
-            function get_item(){
-                document.addEventListener('click', function(event){
-                    if(search_id_able==1){
+    document.addEventListener('click', function(event){
+        if(search_id_able==1){
+            let elem=document.elementFromPoint(event.clientX, event.clientY);
+            if(elem){
+                let list_elem=elem.closest('li');
+                if(list_elem){
+                    if(list_elem.classList.contains('iineListItem')){
                         event.preventDefault();
                         event.stopImmediatePropagation();
-                        let elem=document.elementFromPoint(event.clientX, event.clientY);
-                        if(elem){
-                            let list_elem=elem.closest('li');
-                            if(list_elem){
-                                if(list_elem.classList.contains('iineListItem')){
-                                    get(list_elem); }}}}});
+                        get(list_elem); }}}}});
 
 
-                function get(target){
-                    let link=target.querySelector('a');
-                    if(link){
-                        let link_href=link.getAttribute('href');
-                        if(link_href){
-                            let part=link_href.split('/');
-                            let search_id_new=part[part.length-2];
-                            let search_id_box=document.querySelector('#search_id_box');
-                            if(search_id_box){
-                                clear_line();
-                                target.style.outline='2px solid #2196f3';
-                                target.style.outlineOffset='-3px';
+    function get(target){
+        let link=target.querySelector('a');
+        if(link){
+            let link_href=link.getAttribute('href');
+            if(link_href){
+                let part=link_href.split('/');
+                let search_id_new=part[part.length-2];
+                let search_id_box=document.querySelector('#search_id_box');
+                if(search_id_box){
+                    clear_line();
+                    target.style.outline='2px solid #2196f3';
+                    target.style.outlineOffset='-3px';
 
-                                let set_id=document.querySelector('#navbox #set_id');
-                                let set_ok=document.querySelector('#navbox #set_ok');
-                                let set_cancel=document.querySelector('#navbox #set_cancel');
-                                if(set_id && set_ok && set_cancel){
-                                    set_id.style.display='none';
-                                    set_ok.style.display='inline-block';
-                                    set_cancel.style.display='inline-block';
+                    let set_id=document.querySelector('#navbox #set_id');
+                    let set_ok=document.querySelector('#navbox #set_ok');
+                    let set_cancel=document.querySelector('#navbox #set_cancel');
+                    if(set_id && set_ok && set_cancel){
+                        decision(1);
 
-                                    let str=
-                                        '<p><ic2>🔴</ic2> 検索対象のIDを変更します</P>'+
-                                        '<p class="half">　</p>'+
-                                        '<p>上枠のこれまでの検索対象のIDはリセットされます　'+
-                                        '必要ならコピーして保存してください</P>'+
-                                        '<p class="half">　</p>'+
-                                        '<p>新しい検索対象のID： </P>'+
-                                        '<p>'+ search_id_new +'</P>'+
-                                        '<p class="half">　</p>'+
-                                        '<p>「IDを設定する」を押すとIDを更新します　また、'+
-                                        '検索経過を示す「青マーク」がリセットされます</P>';
-                                    support(str);
+                        let str=
+                            '<p><ic2>🔴</ic2> 検索対象のIDを変更します</P>'+
+                            '<p class="half">　</p>'+
+                            '<p>上枠のこれまでの検索対象のIDはリセットされます　'+
+                            '必要ならコピーして保存してください</P>'+
+                            '<p class="half">　</p>'+
+                            '<p>新しい検索対象のID： </P>'+
+                            '<p>'+ search_id_new +'</P>'+
+                            '<p class="half">　</p>'+
+                            '<p>「IDを設定する」を押すとIDを更新します　また、'+
+                            '検索経過を示す「青マーク」がリセットされます</P>';
+                        support(str);
 
+                        set_ok.onclick=()=>{
+                            decision(0);
+                            search_id=search_id_new;
+                            search_id_box.textContent=search_id;
+                            document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800';
+                            end_set_id();
+                            clear_list_done();
+                            search_id_able=0;
+                            action.disabled=false;
+                            drive_mode='s'; } //「s」停止モード 再検索可能
 
-                                    set_ok.onclick=()=>{
-                                        set_id.style.display='inline-block';
-                                        set_ok.style.display='none';
-                                        set_cancel.style.display='none';
+                        set_cancel.onclick=()=>{
+                            decision(0);
+                            clear_line();
+                            set_id.click(); }
 
-                                        search_id=search_id_new;
-                                        search_id_box.textContent=search_id;
-                                        document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800';
-                                        end_set_id();
-                                        clear_list_done();
+                    } // if(set_id && set_ok && set_cancel)
+                }}}
 
-                                        search_id_able=0;
-                                        action.disabled=false;
-                                        drive_mode='s'; //「s」停止モード 再検索可能
-                                        monitor1.disconnect(); }
-
-
-                                    set_cancel.onclick=()=>{
-                                        set_id.style.display='inline-block';
-                                        set_ok.style.display='none';
-                                        set_cancel.style.display='none';
-
-                                        clear_line();
-                                        set_id.click();
-                                        monitor1.disconnect(); }
-
-                                } // if(set_id && set_ok && set_cancel)
-                            }}}
-
-                } // get()
+    } // get()
 
 
-                function clear_line(){
-                    let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
-                    for(let k=0; k<item.length; k++){
-                        item[k].style.outline=''; }}
+    function clear_line(){
+        let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
+        for(let k=0; k<item.length; k++){
+            item[k].style.outline=''; }}
 
 
-                function clear_list_done(){
-                    list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
-                    for(let k=0; k<list_bar.length; k++){
-                        list_bar[k].classList.remove('done'); }} // リストの青バーを削除
-
-            } // get_item()
-
-        } // get_mode()
-
-    } // iine_Mask
+    function clear_list_done(){
+        list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+        for(let k=0; k<list_bar.length; k++){
+            list_bar[k].classList.remove('done'); }} // リストの青バーを削除
 
 } // get_id()
+
+
+
+function decision(n){
+    let set_id=document.querySelector('#navbox #set_id');
+    let set_ok=document.querySelector('#navbox #set_ok');
+    let set_cancel=document.querySelector('#navbox #set_cancel');
+    if(set_id && set_ok && set_cancel){
+        if(n==0){
+            set_id.style.display='inline-block';
+            set_ok.style.display='none';
+            set_cancel.style.display='none'; }
+        else{
+            set_id.style.display='none';
+            set_ok.style.display='inline-block';
+            set_cancel.style.display='inline-block'; }}}
+
+
+
+user_blog();
+
+function user_blog(){
+    document.addEventListener('contextmenu', function(event){
+        let elem=document.elementFromPoint(event.clientX, event.clientY);
+        if(elem){
+            let list_elem=elem.closest('li');
+            if(list_elem){
+                if(list_elem.classList.contains('iineListItem')){
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    get_blog(list_elem); }}}});
+
+    function get_blog(target){
+        let link=target.querySelector('a');
+        if(link){
+            let link_href=link.getAttribute('href');
+            if(link_href){
+                window.open(link_href, '_blank', 'noopener=yes,noreferrer=yes'); }}}
+
+} // user_blog()
+
+
+
+user_blog_();
+
+function user_blog_(){
+    document.addEventListener('contextmenu', function(event){
+        let elem=document.elementFromPoint(event.clientX, event.clientY);
+        if(elem){
+            let tr_elem=elem.closest('tr');
+            if(tr_elem){
+                let user_img=tr_elem.querySelector('.list_img')
+                if(user_img){
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    get_blog(user_img); }}}});
+
+    function get_blog(target){
+        let link_href=target.getAttribute('href');
+        if(link_href){
+            window.open(link_href, '_blank', 'noopener=yes,noreferrer=yes'); }}
+
+} // user_blog_()
 
 
 
@@ -575,8 +609,10 @@ function end_more(){
             '#iineEntryContents { max-height: unset !important; height: calc(100vh - 56px); '+
             'background: cadetblue; scrollbar-width: none; }'+
             '.iineListItem { background: #d5e7ed; }'+
-            '.iineListItem a { pointer-events: none; }'+
+            '.iineListItem a { pointer-events: none; }'+ // いいね！された記事
             '#moreLinkBtm { visibility: hidden; }'+
+
+            '#iineHistoryUserFrame table tr a { pointer-events: none; }'+ // いいね！してくれた人
 
             '#footerAd, #globalFooter { display: none; }'+
             'html { overflow: hidden; }'+
