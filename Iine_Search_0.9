@@ -540,11 +540,11 @@ function user_blog_(){
         if(elem){
             let tr_elem=elem.closest('tr');
             if(tr_elem){
-                let user_img=tr_elem.querySelector('.list_img')
-                if(user_img){
+                let user_link=tr_elem.querySelector('.heading a');
+                if(user_link){
                     event.preventDefault();
                     event.stopImmediatePropagation();
-                    get_blog(user_img); }}}});
+                    get_blog(user_link); }}}});
 
     function get_blog(target){
         let link_href=target.getAttribute('href');
@@ -814,5 +814,4 @@ function end_more_dia(){
             return true; }} // 管理トップでは 常にON
 
 } //end_more_dia()
-
 
