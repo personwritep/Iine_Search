@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        0.9
+// @version        1.0
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -14,405 +14,535 @@
 
 /* ======== 操作パネルと自動検索ツール ===========================*/
 
-let drive_mode='s'; // ページ更新時の動作モード
+let drive_mode; // ページ更新時の動作モード
 let search_id=0; // 検索対象のユーザーID
-let search_id_able=0; // ID設定可能な状態
+let search_id_able; // ID設定可能な状態
 let list_bar; // 記事リストに読込んだ記事行の配列
 let next_target; // ページ内の次の対象記事
 let action;
-let l_pos=0; // パネルデザイン
+let l_pos; // パネルデザイン
 let help_url="https://ameblo.jp/personwritep/entry-12926930048.html";
-
-
-nav();
-
-function nav(){
-    let nav_box=
-        '<div id="navbox">'+
-        '<button id="set_id">検索対象のIDを設定</button>'+
-        '<button id="set_ok">IDを設定する</button>'+
-        '<button id="set_cancel">中止</button>'+
-        '<div class="nav_in">'+
-        '<button class="is_help nav_sw">？</button>'+
-        '<button class="s_l nav_sw">▲</button>'+
-        '</div>'+
-        '<div id="search_id_box">未設定</div>'+
-        '<button id="action">検索を開始する</button>'+
-        '<div id="support"></div>'+
-        '</div>'+
-        '<style>'+
-        '#ucsContent { margin: 0 20px 0 auto; }'+
-
-        '#navbox { position: fixed; top: 8px; left: 20px; z-index: 9500; '+
-        'font: normal 16px meiryo; color: #000; width: 280px; padding: 20px; '+
-        'border: 1px solid #888; border-radius: 4px; '+
-        'background: #5bb4d8; box-shadow: 0 0 40px 0 #00000040; }'+
-        '.nav_in { display: flex; position: absolute; top: 20px; right: 20px; }'+
-        '.nav_sw { font: bold 20px Meiryo; text-indent: -2px; height: 30px; width: 30px; '+
-        'border: 1px solid #666; background: #ffffff50; cursor: pointer; }'+
-        '.is_help { line-height: 30px; border-radius: 40px; margin-right: 5px; }'+
-        '.s_l { line-height: 28px; border-radius: 4px; }'+
-        '.is_help:hover, .s_l:hover { background: #fff; }'+
-        '#set_id, #set_ok, #set_cancel, #action { font: normal 16px Meiryo; '+
-        'padding: 10px 16px 8px; background: #e4faff; border: 1px solid #888; '+
-        'border-radius: 4px; cursor: pointer; }'+
-        '#set_ok { padding: 10px 12px 8px; display: none; }'+
-        '#set_cancel { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
-        '#search_id_box { height: 24px; margin: 10px 0 20px; padding: 3px 12px 1px; '+
-        'border: 1px solid #888; border-radius: 4px; background: #fff; '+
-        'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
-        '#support { min-height: 47px; margin: 40px 0 0; padding: 16px 12px 13px; '+
-        'white-space: break-spaces; border-radius: 4px; background: #fff; display: none; }'+
-        '#support ic1 { font-size: 24px; line-height: 16px; }'+
-        '#support ic2 { font-size: 20px; line-height: 16px; }'+
-        '#support .half { line-height: 0.5; }'+
-
-        '.done { box-shadow: 4px 0 0 0 #fff, 16px 0 0 -1px #2196f3; }'+
-        '</style>'+
-
-        '<style class="l_style">'+
-        '#navbox { position: fixed; top: 132px; box-shadow: 0 20px 40px 0 #00000040; }'+
-        '#support { display: block; }'+
-        '</style>';
-
-    if(!document.querySelector('#navbox')){
-        document.body.insertAdjacentHTML('beforeend', nav_box); }
-
-    let help_sw=document.querySelector('.is_help.nav_sw');
-    if(help_sw){
-        help_sw.onclick=()=>{
-            window.open(help_url, '_blank', 'noopener=yes,noreferrer=yes'); }}
-
-
-    let s_l_sw=document.querySelector('.s_l.nav_sw');
-    let l_style=document.querySelector('.l_style');
-    if(s_l_sw && l_style){
-        s_l_sw.onclick=()=>{
-            if(l_pos==0){
-                l_pos=1;
-                s_l_sw.textContent='▼';
-                l_style.disabled=true; }
-            else{
-                l_pos=0;
-                s_l_sw.textContent='▲';
-                l_style.disabled=false; }}}
-
-
-    id_check();
-
-} // nav(ask)
-
-
-
-function id_check(){
-    let search_id_box=document.querySelector('#search_id_box');
-    if(search_id_box){
-        search_id=get_cookie('Iine_ID');
-        if(search_id!=0){
-            search_id_box.textContent=search_id;
-            let str=
-                '<p><ic1>⚠️</ic1> 検索対象のIDは前回を継承</p>'+
-                '<p class="half">　</p>'+
-                '<p>別のユーザーを検索するには、検索対象のユーザーIDを再設定します</p>';
-            support(str);
-            document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800'; } // 7日間保持
-        else{
-            let str=
-                '<p><ic1>⚠️</ic1> 検索対象のIDが未設定です</p>'+
-                '<p class="half">　</p>'+
-                '<p>検索を機能させるには、検索対象のユーザーIDの設定が必要です</p>';
-            support(str); }}
-
-} // id_check()
 
 
 
 setTimeout(()=>{
-    let table=document.querySelector('#iineHistoryEntryFrame tbody');
-    if(table){
-        let monitor=new MutationObserver(clicked_item);
-        monitor.observe(table, {childList: true});
+    mother();
 
-        clicked_item(); }
-}, 1000);
-
+    let targetm=document.querySelector('#navLeft');
+    let monitorm=new MutationObserver(mother);
+    monitorm.observe(targetm, { attributes: true });
+}, 800);
 
 
-function clicked_item(){
-    list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
-    for(let k=0; k<list_bar.length; k++){
-        list_bar[k].onclick=function(event){
-            if(event.ctrlKey){
-                event.preventDefault();
-                event.stopImmediatePropagation();
-                wild_search(k); }}}
-
-    function wild_search(k){
-        if(search_id_able==0){
-            drive_mode='c'; // ページ内の連続処理
-            action.textContent='　検索を一旦停止　❚❚';
-            let str=
-                '<p>「❚❚」ボタンを押す：一旦停止</p>'+
-                '<p>「▶」ボタンを押す：検索再開</p>'+
-                '<p class="half">　</p>'+
-                '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
-                '<p> 　➔ その行から検索を開始</p>';
-            support(str);
-            not_set(1);
-            open_dialog(k); }}
-
-} // clicked_item()
+function mother(){
+    if(document.querySelector('#iineHistoryEntryFrame')){
+        if(document.querySelector('#navbox_')){
+            document.querySelector('#navbox_').remove(); }
+        drive_mode='s';
+        search_id_able=0;
+        l_pos=0;
+        main(); }
+    else if(document.querySelector('#iineHistoryUserFrame')){
+        if(document.querySelector('#navbox')){
+            document.querySelector('#navbox').remove(); }
+        search_id_able=0;
+        sub(); }}
 
 
 
-control_pannel();
+function main(){
 
-function control_pannel(){
-    let set_id=document.querySelector('#navbox #set_id');
-    if(set_id){
-        set_id.addEventListener('click', function(event){
-            event.preventDefault();
-            event.stopImmediatePropagation();
-            if(search_id_able==0){
-                search_id_able=1;
-                action.disabled=true;
-                set_id.textContent='IDの設定を中止';
+    nav();
 
+    function nav(){
+        let nav_box=
+            '<div id="navbox">'+
+            '<button id="set_id">検索対象のIDを設定</button>'+
+            '<button id="set_ok">IDを設定する</button>'+
+            '<button id="set_cancel">中止</button>'+
+            '<div class="nav_in">'+
+            '<button class="is_help nav_sw">？</button>'+
+            '<button class="s_l nav_sw">▲</button>'+
+            '</div>'+
+            '<div id="search_id_box">未設定</div>'+
+            '<button id="action">検索を開始する</button>'+
+            '<div id="support"></div>'+
+
+            '<style>'+
+            '#navbox { position: fixed; top: 8px; left: 20px; z-index: 9500; '+
+            'font: normal 16px meiryo; color: #000; width: 280px; padding: 10px 20px; '+
+            'border: 1px solid #888; border-radius: 4px; '+
+            'background: #5bb4d8; box-shadow: 0 0 40px 0 #00000040; }'+
+            '.nav_in { display: flex; position: absolute; top: 10px; right: 20px; }'+
+            '.nav_sw { font: bold 20px Meiryo; text-indent: -2px; height: 30px; width: 30px; '+
+            'border: 1px solid #666; background: #ffffff50; cursor: pointer; }'+
+            '.is_help { line-height: 30px; border-radius: 40px; margin-right: 5px; }'+
+            '.s_l { line-height: 28px; border-radius: 4px; }'+
+            '.is_help:hover, .s_l:hover { background: #fff; }'+
+            '#set_id, #set_ok, #set_cancel, #action { font: normal 16px Meiryo; '+
+            'padding: 10px 16px 8px; background: #e4faff; border: 1px solid #888; '+
+            'border-radius: 4px; cursor: pointer; }'+
+            '#set_ok { padding: 10px 12px 8px; display: none; }'+
+            '#set_cancel { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
+            '#search_id_box { height: 24px; margin: 10px 0; padding: 3px 12px 1px; '+
+            'border: 1px solid #888; border-radius: 4px; background: #fff; '+
+            'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
+            '#support { min-height: 47px; margin: 20px 0 0; padding: 16px 12px 13px; '+
+            'white-space: break-spaces; border-radius: 4px; background: #fff; display: none; }'+
+            '#support ic1 { font-size: 24px; line-height: 16px; }'+
+            '#support ic2 { font-size: 20px; line-height: 16px; }'+
+            '#support .half { line-height: 0.5; }'+
+
+            '.done { box-shadow: 9px 0 0 -1px #2196f3, -9px 0 0 -1px #2196f3; }'+
+            '</style>'+
+
+            '<style class="l_style">'+
+            '#navbox { position: fixed; top: 50px; box-shadow: 0 20px 40px 0 #00000040; }'+
+            '#support { display: block; }'+
+            '</style>'+
+            '</div>';
+
+        if(!document.querySelector('#navbox')){
+            document.body.insertAdjacentHTML('beforeend', nav_box); }
+
+        let help_sw=document.querySelector('.is_help.nav_sw');
+        if(help_sw){
+            help_sw.onclick=()=>{
+                window.open(help_url, '_blank', 'noopener=yes,noreferrer=yes'); }}
+
+
+        let s_l_sw=document.querySelector('.s_l.nav_sw');
+        let l_style=document.querySelector('.l_style');
+        if(s_l_sw && l_style){
+            s_l_sw.onclick=()=>{
+                if(l_pos==0){
+                    l_pos=1;
+                    s_l_sw.textContent='▼';
+                    l_style.disabled=true; }
+                else{
+                    l_pos=0;
+                    s_l_sw.textContent='▲';
+                    l_style.disabled=false; }}}
+
+        id_check();
+
+    } // nav()
+
+
+
+    function id_check(){
+        let search_id_box=document.querySelector('#search_id_box');
+        if(search_id_box){
+            search_id=get_cookie('Iine_ID');
+            if(search_id!=0){
+                search_id_box.textContent=search_id;
                 let str=
-                    '<p>検索するユーザーを設定するには</P>'+
+                    '<p><ic1>⚠️</ic1> 検索対象のIDは前回を継承</p>'+
                     '<p class="half">　</p>'+
-                    '<p>❶ 検索対象を含む記事を「<b>Click</b>」</P>'+
-                    '<p>　 その記事のダイアログを開く</P>'+
-                    '<p class="half">　</p>'+
-                    '<p>❷ 検索対象の行を「<b>Click</b>」する</P>'+
-                    '<p>　</p>'+
-                    '<p>操作を中止して元の状態に戻るには「IDの設定を中止」を押します</P>';
+                    '<p>別のユーザーを検索するには、検索対象のユーザーIDを再設定します</p>';
                 support(str);
-                get_id(); }
+                document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800'; } // 7日間保持
             else{
-                search_id_able=0;
-                action.disabled=false;
-                set_id.textContent='検索対象のIDを設定';
+                let str=
+                    '<p><ic1>⚠️</ic1> 検索対象のIDが未設定です</p>'+
+                    '<p class="half">　</p>'+
+                    '<p>検索を機能させるには、検索対象のユーザーIDの設定が必要です</p>';
+                support(str); }}
+
+    } // id_check()
+
+
+
+    setTimeout(()=>{
+        let table=document.querySelector('#iineHistoryEntryFrame tbody');
+        if(table){
+            let monitor0=new MutationObserver(clicked_item);
+            monitor0.observe(table, {childList: true});
+
+            clicked_item(); }
+    }, 1000);
+
+
+
+    function clicked_item(){
+        list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+        for(let k=0; k<list_bar.length; k++){
+            list_bar[k].onclick=function(event){
+                if(event.ctrlKey){
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                    wild_search(k); }}}
+
+        function wild_search(k){
+            if(search_id_able==0){
+                drive_mode='c'; // ページ内の連続処理
+                action.textContent='　検索を一旦停止　❚❚';
                 let str=
                     '<p>「❚❚」ボタンを押す：一旦停止</p>'+
                     '<p>「▶」ボタンを押す：検索再開</p>'+
                     '<p class="half">　</p>'+
                     '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
                     '<p> 　➔ その行から検索を開始</p>';
-                support(str); }
-        }); }
+                support(str);
+                not_set(1);
+                open_dialog(k); }}
+
+    } // clicked_item()
 
 
-    let iine_Mask=document.querySelector('#iineEntryListMask');
-    if(iine_Mask){
-        let monitor1=new MutationObserver(get_end);
-        monitor1.observe(iine_Mask, { attributes: true });
 
-        function get_end(){
-            if(search_id_able==1){
-                if(iine_Mask.classList.contains('hide')){
-                    decision(0);
-                    let set_id=document.querySelector('#navbox #set_id');
-                    if(set_id){
-                        set_id.click(); }}}}}
+    control_pannel();
 
+    function control_pannel(){
+        let set_id=document.querySelector('#navbox #set_id');
+        if(set_id){
+            set_id.addEventListener('click', function(event){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if(search_id_able==0){
+                    search_id_able=1;
+                    action.disabled=true;
+                    set_id.textContent='IDの設定を中止';
 
-    action=document.querySelector('#navbox #action');
-    action.addEventListener('click', function(event){
-        event.preventDefault();
-        start_stop(); }); // 処理のコントロール
-
-
-    function start_stop(){
-        if(drive_mode=='s'){
-            let str=
-                '<p><ic2>🔴</ic2> ダイアログ検索を開始します</p>'+
-                '<p class="half">　</p>'+
-                '<p>▶ リストの行を「<b>Ctrl+Click</b>」</p>'+
-                '<p>　 その行以降の検索を開始します</p>'+
-                '<p class="half">　</p>'+
-                '<p>▶「一旦停止 ❚❚」ボタンを押すと</p>'+
-                '<p>　 検索停止 / 検索再開 ができます</p>';
-            support(str);
-            action.textContent='開始行を「Ctrl+Click」します';
-            close_dialog(); }
-
-        else if(drive_mode=='c'){ // 連続動作状態の場合
-            drive_mode='p'; // クリックされたら「p」停止モード
-            action.textContent='　検索を再開する　▶';
-            not_set(0);
-            un_dark(); }
-
-        else if(drive_mode=='p'){ // 動作停止状態の場合
-            drive_mode='c'; // クリックされたら連続動作を再開
-            action.textContent='　検索を一旦停止　❚❚';
-            not_set(1);
-            open_dialog(next_target); }
-
-    } // start_stop()
+                    let str=
+                        '<p>検索するユーザーを設定するには</P>'+
+                        '<p class="half">　</p>'+
+                        '<p>❶ 検索対象を含む記事を「<b>Click</b>」</P>'+
+                        '<p>　 その記事のダイアログを開く</P>'+
+                        '<p class="half">　</p>'+
+                        '<p>❷ 検索対象の行を「<b>Click</b>」する</P>'+
+                        '<p>　</p>'+
+                        '<p>操作を中止して元の状態に戻るには「IDの設定を中止」を押します</P>';
+                    support(str);
+                    get_id(); }
+                else{
+                    search_id_able=0;
+                    action.disabled=false;
+                    set_id.textContent='検索対象のIDを設定';
+                    let str=
+                        '<p>「❚❚」ボタンを押す：一旦停止</p>'+
+                        '<p>「▶」ボタンを押す：検索再開</p>'+
+                        '<p class="half">　</p>'+
+                        '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
+                        '<p> 　➔ その行から検索を開始</p>';
+                    support(str); }
+            }); }
 
 
-    document.addEventListener('keydown', function(event){
-        if(event.keyCode==13){
+        let iine_Mask=document.querySelector('#iineEntryListMask');
+        if(iine_Mask){
+            let monitor1=new MutationObserver(get_end);
+            monitor1.observe(iine_Mask, { attributes: true });
+
+            function get_end(){
+                if(search_id_able==1){
+                    if(iine_Mask.classList.contains('hide')){
+                        decision(0);
+                        let set_id=document.querySelector('#navbox #set_id');
+                        if(set_id){
+                            set_id.click(); }}}}}
+
+
+        action=document.querySelector('#navbox #action');
+        action.addEventListener('click', function(event){
             event.preventDefault();
             event.stopImmediatePropagation();
-            if(action){
-                action.click(); }}});
-
-} // control_pannel()
+            start_stop(); }); // 処理のコントロール
 
 
+        function start_stop(){
+            if(drive_mode=='s'){
+                let str=
+                    '<p><ic2>🔴</ic2> ダイアログ検索を開始します</p>'+
+                    '<p class="half">　</p>'+
+                    '<p>▶ リストの行を「<b>Ctrl+Click</b>」</p>'+
+                    '<p>　 その行以降の検索を開始します</p>'+
+                    '<p class="half">　</p>'+
+                    '<p>▶「一旦停止 ❚❚」ボタンを押すと</p>'+
+                    '<p>　 検索停止 / 検索再開 ができます</p>';
+                support(str);
+                action.textContent='開始行を「Ctrl+Click」します';
+                close_dialog(); }
 
-function not_set(n){
-    let set_id=document.querySelector('#navbox #set_id');
-    if(set_id){
-        if(n==0){
-            set_id.disabled=false; }
-        else{
-            set_id.disabled=true; }}}
-
-
-
-function open_dialog(k){
-    next_target=k; // この段階は未処理
-
-    if(drive_mode=='c'){
-        list_bar[k].classList.add('done'); // リストに青バーを表示
-        list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
-        list_bar[k].click();
-
-
-        setTimeout(()=>{
-            clear_frame();
-        }, 100);
-
-        setTimeout(()=>{
-            if(search_who()){
-                drive_mode='p'; //「p」停止モード
+            else if(drive_mode=='c'){ // 連続動作状態の場合
+                drive_mode='p'; // クリックされたら「p」停止モード
                 action.textContent='　検索を再開する　▶';
-                not_set(0);
-                end_target(); }
+                not_set(0)
+                un_dark(); }
+
+            else if(drive_mode=='p'){ // 動作停止状態の場合
+                drive_mode='c'; // クリックされたら連続動作を再開
+                action.textContent='　検索を一旦停止　❚❚';
+                not_set(1);
+                open_dialog(next_target); }
+
+        } // start_stop()
+
+
+        document.addEventListener('keydown', function(event){
+            if(event.keyCode==13){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if(action){
+                    action.click(); }}});
+
+    } // control_pannel()
+
+
+
+    function not_set(n){
+        let set_id=document.querySelector('#navbox #set_id');
+        if(set_id){
+            if(n==0){
+                set_id.disabled=false; }
             else{
-                close_dialog();
-                dark();
-                end_target(); } // 終了後に次の行へ移行
-
-        }, 2000); // リストのロードタイミング
+                set_id.disabled=true; }}}
 
 
 
-        function search_who(){
-            if(search_id!=0){ //「0」の場合はID未設定
-                let iLI=document.querySelectorAll('.iineListItem a');
-                for(let i=0; i<iLI.length; i++){
-                    let link=iLI[i].getAttribute('href');
-                    if(link){
-                        if(link.includes(search_id)){
-                            iLI[i].style.outline='2px solid red';
-                            iLI[i].style.outlineOffset='6px';
-                            iLI[i].scrollIntoView({block: "center"});
-                            return true; }}}}
+    function open_dialog(k){
+        next_target=k; // この段階は未処理
 
-        } // search_who()
+        if(drive_mode=='c'){
+            list_bar[k].classList.add('done'); // リストに青バーを表示
+            list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
+            list_bar[k].click();
 
 
-
-        function clear_frame(){
-            let iEC=document.querySelectorAll('#iineEntryContener');
-            if(iEC.length>1){
-                for(let k=1; k<iEC.length; k++){
-                    iEC[k].remove(); }}
-
-            let iELF=document.querySelectorAll('#iineEntryListFrame');
-            if(iELF.length>1){
-                for(let k=1; k<iELF.length; k++){
-                    iELF[k].remove(); }}
-        } // clear_frame()
-
-
-
-        function end_target(){ // 終了処理
             setTimeout(()=>{
-                next_do(k); }, 10); //⏩
+                clear_frame();
+            }, 100);
 
-            function next_do(k){
-                next_target=k+1;
-                if(next_target<list_bar.length){
-                    open_dialog(next_target); }
+            setTimeout(()=>{
+                if(search_who()){
+                    drive_mode='p'; //「p」停止モード
+                    action.textContent='　検索を再開する　▶';
+                    not_set(0);
+                    end_target(); }
                 else{
-                    setTimeout(()=>{
-                        drive_mode='s'; //「s」停止モード 再検索可能
-                        action.textContent='　検索を再開する　▶';
-                        let str=
-                            '<p><ic2>⛔</ic2> リスト末尾まで検索しました</p>'+
-                            '<p class="half">　</p>'+
-                            '<p>「<b>Space</b>」キーを押して更に過去のリストを読み込み、'+
-                            '調査範囲を拡げて検索を再開できます</p>';
-                        support(str);
-                        not_set(0);
-                        un_dark();
-                    },200);
-                }}
+                    close_dialog();
+                    dark();
+                    end_target(); } // 終了後に次の行へ移行
 
-        } // end_target()
-
-    } // if(drive_mode=='c')
-
-} // open_dialog()
+            }, 2000); // リストのロードタイミング
 
 
 
-function close_dialog(){
-    let iCB=document.querySelector('#iineCloseBtn');
-    if(iCB){
-        iCB.click(); }}
+            function search_who(){
+                if(search_id!=0){ //「0」の場合はID未設定
+                    let iLI=document.querySelectorAll('.iineListItem a');
+                    for(let i=0; i<iLI.length; i++){
+                        let link=iLI[i].getAttribute('href');
+                        if(link){
+                            if(link.includes(search_id)){
+                                iLI[i].style.outline='2px solid red';
+                                iLI[i].style.outlineOffset='6px';
+                                iLI[i].scrollIntoView({block: "center"});
+                                return true; }}}}
+
+            } // search_who()
 
 
-function dark(){
-    let iELM=document.querySelector('#iineEntryListMask');
-    if(iELM){
-        iELM.classList.remove('hide'); }}
+
+            function clear_frame(){
+                let iEC=document.querySelectorAll('#iineEntryContener');
+                if(iEC.length>1){
+                    for(let k=1; k<iEC.length; k++){
+                        iEC[k].remove(); }}
+
+                let iELF=document.querySelectorAll('#iineEntryListFrame');
+                if(iELF.length>1){
+                    for(let k=1; k<iELF.length; k++){
+                        iELF[k].remove(); }}
+            } // clear_frame()
 
 
-function un_dark(){
-    setTimeout(()=>{
+
+            function end_target(){ // 終了処理
+                setTimeout(()=>{
+                    next_do(k); }, 10); //⏩
+
+                function next_do(k){
+                    next_target=k+1;
+                    if(next_target<list_bar.length){
+                        open_dialog(next_target); }
+                    else{
+                        setTimeout(()=>{
+                            drive_mode='s'; //「s」停止モード 再検索可能
+                            action.textContent='　検索を再開する　▶';
+                            let str=
+                                '<p><ic2>⛔</ic2> リスト末尾まで検索しました</p>'+
+                                '<p class="half">　</p>'+
+                                '<p>「<b>Space</b>」キーを押して更に過去のリストを読み込み、'+
+                                '調査範囲を拡げて検索を再開できます</p>';
+                            support(str);
+                            not_set(0);
+                            un_dark();
+                        },200); }}
+
+            } // end_target()
+
+        } // if(drive_mode=='c')
+
+    } // open_dialog()
+
+
+
+    function close_dialog(){
+        let iCB=document.querySelector('#iineCloseBtn');
+        if(iCB){
+            iCB.click(); }}
+
+
+    function dark(){
         let iELM=document.querySelector('#iineEntryListMask');
-        let iEF=document.querySelector('#iineEntryFrame');
-        if(iELM && iEF){
-            if(iEF.clientHeight==0){
-                iELM.classList.add('hide'); }}
-    }, 1000);
-    setTimeout(()=>{
-        let iELM=document.querySelector('#iineEntryListMask');
-        let iEF=document.querySelector('#iineEntryFrame');
-        if(iELM && iEF){
-            if(iEF.clientHeight==0){
-                iELM.classList.add('hide'); }}
-    }, 2000); }
+        if(iELM){
+            iELM.classList.remove('hide'); }}
+
+
+    function un_dark(){
+        setTimeout(()=>{
+            let iELM=document.querySelector('#iineEntryListMask');
+            let iEF=document.querySelector('#iineEntryFrame');
+            if(iELM && iEF){
+                if(iEF.clientHeight==0){
+                    iELM.classList.add('hide'); }}
+        }, 1000);
+        setTimeout(()=>{
+            let iELM=document.querySelector('#iineEntryListMask');
+            let iEF=document.querySelector('#iineEntryFrame');
+            if(iELM && iEF){
+                if(iEF.clientHeight==0){
+                    iELM.classList.add('hide'); }}
+        }, 2000); }
 
 
 
-function support(str){
-    let support=document.querySelector('#support');
-    if(support){
-        support.innerHTML=str; }}
+    function support(str){
+        let support=document.querySelector('#support');
+        if(support){
+            support.innerHTML=str; }}
 
 
 
-function end_set_id(){
-    let set_id=document.querySelector('#navbox #set_id');
-    if(set_id){
-        set_id.textContent='検索対象のIDを設定'; }
-    let str=
-        '<p>検索対象のIDが設定されました</P>'+
-        '<p>現在のダイアログを閉じてください</P>';
-    support(str); }
+    function end_set_id(){
+        let set_id=document.querySelector('#navbox #set_id');
+        if(set_id){
+            set_id.textContent='検索対象のIDを設定'; }
+        let str=
+            '<p>検索対象のIDが設定されました</P>'+
+            '<p>現在のダイアログを閉じてください</P>';
+        support(str); }
 
 
 
-function get_id(){
-    document.addEventListener('click', function(event){
-        if(search_id_able==1){
+    function get_id(){
+        document.addEventListener('click', function(event){
+            if(search_id_able==1){
+                let elem=document.elementFromPoint(event.clientX, event.clientY);
+                if(elem){
+                    let list_elem=elem.closest('li');
+                    if(list_elem){
+                        if(list_elem.classList.contains('iineListItem')){
+                            event.preventDefault();
+                            event.stopImmediatePropagation();
+                            get(list_elem); }}}}});
+
+
+        function get(target){
+            let link=target.querySelector('a');
+            if(link){
+                let link_href=link.getAttribute('href');
+                if(link_href){
+                    let part=link_href.split('/');
+                    let search_id_new=part[part.length-2];
+                    let search_id_box=document.querySelector('#search_id_box');
+                    if(search_id_box){
+                        clear_line();
+                        target.style.outline='2px solid #2196f3';
+                        target.style.outlineOffset='-3px';
+
+                        let set_id=document.querySelector('#navbox #set_id');
+                        let set_ok=document.querySelector('#navbox #set_ok');
+                        let set_cancel=document.querySelector('#navbox #set_cancel');
+                        if(set_id && set_ok && set_cancel){
+                            decision(1);
+                            decision_str(search_id_new);
+
+                            set_ok.onclick=()=>{
+                                decision(0);
+                                search_id=search_id_new;
+                                search_id_box.textContent=search_id;
+                                document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800';
+                                end_set_id();
+                                clear_list_done();
+                                search_id_able=0;
+                                action.disabled=false;
+                                drive_mode='s'; } //「s」停止モード 再検索可能
+
+                            set_cancel.onclick=()=>{
+                                decision(0);
+                                clear_line();
+                                set_id.click(); }
+
+                        } // if(set_id && set_ok && set_cancel)
+                    }}}
+
+        } // get()
+
+
+        function clear_line(){
+            let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
+            for(let k=0; k<item.length; k++){
+                item[k].style.outline=''; }}
+
+
+        function clear_list_done(){
+            list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+            for(let k=0; k<list_bar.length; k++){
+                list_bar[k].classList.remove('done'); }} // リストの青バーを削除
+
+
+        function decision_str(new_id){
+            let str=
+                '<p><ic2>🔴</ic2> 検索対象のIDを変更します</P>'+
+                '<p class="half">　</p>'+
+                '<p>上枠のこれまでの検索対象のIDはリセットされます　'+
+                '必要ならコピーして保存してください</P>'+
+                '<p class="half">　</p>'+
+                '<p>新しい検索対象のID： </P>'+
+                '<p>'+ new_id +'</P>'+
+                '<p class="half">　</p>'+
+                '<p>「IDを設定する」を押すとIDを更新します　また、'+
+                '検索経過を示す「青マーク」がリセットされます</P>';
+            support(str); } // decision_str()
+
+    } // get_id()
+
+
+
+    function decision(n){
+        let set_id=document.querySelector('#navbox #set_id');
+        let set_ok=document.querySelector('#navbox #set_ok');
+        let set_cancel=document.querySelector('#navbox #set_cancel');
+        if(set_id && set_ok && set_cancel){
+            if(n==0){
+                set_id.style.display='inline-block';
+                set_ok.style.display='none';
+                set_cancel.style.display='none'; }
+            else{
+                set_id.style.display='none';
+                set_ok.style.display='inline-block';
+                set_cancel.style.display='inline-block'; }}
+
+    } // decision(n)
+
+
+
+    user_blog();
+
+    function user_blog(){
+        document.addEventListener('contextmenu', function(event){
             let elem=document.elementFromPoint(event.clientX, event.clientY);
             if(elem){
                 let list_elem=elem.closest('li');
@@ -420,138 +550,238 @@ function get_id(){
                     if(list_elem.classList.contains('iineListItem')){
                         event.preventDefault();
                         event.stopImmediatePropagation();
-                        get(list_elem); }}}}});
+                        get_blog(list_elem); }}}});
+
+        function get_blog(target){
+            let link=target.querySelector('a');
+            if(link){
+                let link_href=link.getAttribute('href');
+                if(link_href){
+                    window.open(link_href, '_blank', 'noopener=yes,noreferrer=yes'); }}}
+
+    } // user_blog()
+
+} // main()
 
 
-    function get(target){
-        let link=target.querySelector('a');
-        if(link){
-            let link_href=link.getAttribute('href');
+
+
+function sub(){
+
+    nav_();
+
+    function nav_(){
+        let nav_box_=
+            '<div id="navbox_">'+
+            '<button id="set_id_">検索対象のIDを設定</button>'+
+            '<button id="set_ok_">IDを設定する</button>'+
+            '<button id="set_cancel_">中止</button>'+
+            '<div id="search_id_box_">未設定</div>'+
+            '<div id="support_"></div>'+
+
+            '<style>'+
+            '#navbox_ { position: fixed; top: 8px; left: 20px; z-index: 9500; '+
+            'font: normal 16px meiryo; color: #000; width: 280px; padding: 10px 20px; '+
+            'border: 1px solid #888; border-radius: 4px; '+
+            'background: #5bb4d8; box-shadow: 0 0 40px 0 #00000040; }'+
+            '#set_id_, #set_ok_, #set_cancel_ { font: normal 16px Meiryo; '+
+            'padding: 10px 16px 8px; background: #e4faff; border: 1px solid #888; '+
+            'border-radius: 4px; cursor: pointer; }'+
+            '#set_ok_ { padding: 10px 12px 8px; display: none; }'+
+            '#set_cancel_ { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
+            '#search_id_box_ { height: 24px; margin: 10px 0; padding: 3px 12px 1px; '+
+            'border: 1px solid #888; border-radius: 4px; background: #fff; '+
+            'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
+            '#support_ { min-height: 24px; margin: 20px 0 0; padding: 16px 12px 13px; '+
+            'white-space: break-spaces; border-radius: 4px; background: #fff; }'+
+            '#support_ ic2 { font-size: 20px; line-height: 16px; }'+
+            '#support_ .half { line-height: 0.5; }'+
+            '</style>'+
+            '</div>';
+
+        if(!document.querySelector('#navbox_')){
+            document.body.insertAdjacentHTML('beforeend', nav_box_); }
+
+        id_check_();
+
+    } // nav_()
+
+
+
+    function id_check_(){
+        let search_id_box_=document.querySelector('#search_id_box_');
+        if(search_id_box_){
+            search_id=get_cookie('Iine_ID');
+            if(search_id!=0){
+                search_id_box_.textContent=search_id;
+                let str=
+                    '<p>上枠は現在の検索対象のID</p>';
+                support_(str);
+                document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800'; } // 7日間保持
+            else{
+                let str=
+                    '<p>検索対象のIDが未設定です</p>';
+                support_(str); }}
+
+    } // id_check_()
+
+
+
+    function support_(str){
+        let support_=document.querySelector('#support_');
+        if(support_){
+            support_.innerHTML=str; }}
+
+
+    function end_set_id_(){
+        let set_id_=document.querySelector('#navbox_ #set_id_');
+        if(set_id_){
+            set_id_.textContent='検索対象のIDを設定'; }
+        let str=
+            '<p>検索対象のIDが設定されました</P>';
+        support_(str); }
+
+
+
+    control_pannel_();
+
+    function control_pannel_(){
+        let set_id_=document.querySelector('#navbox_ #set_id_');
+        if(set_id_){
+            set_id_.addEventListener('click', function(event){
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                if(search_id_able==0){
+                    search_id_able=1;
+                    set_id_.textContent='IDの設定を中止';
+                    let str=
+                        '<p>検索対象に設定するユーザーの行を</P>'+
+                        '<p>「<b>Click</b>」します</P>';
+                    support_(str);
+                    get_id_(); }
+                else{
+                    search_id_able=0;
+                    set_id_.textContent='検索対象のIDを設定';
+                    let str=
+                        '<p>検索するユーザーを変更するには</P>'+
+                        '<p>「検索対象の1Dを設定」を押す</P>';
+                    support_(str); }
+            }); }
+
+    } // control_pannel_()
+
+
+
+    function get_id_(){
+        document.addEventListener('click', function(event){
+            if(search_id_able==1){
+                let elem=document.elementFromPoint(event.clientX, event.clientY);
+                if(elem){
+                    let tr_elem=elem.closest('tr');
+                    if(tr_elem){
+                        let user_link=tr_elem.querySelector('.heading a');
+                        if(user_link){
+                            event.preventDefault();
+                            event.stopImmediatePropagation();
+                            get_(user_link, tr_elem); }}}}});
+
+
+        function get_(target, target_tr){
+            let link_href=target.getAttribute('href');
             if(link_href){
+                clear_line_();
+                target_tr.style.outline='2px solid #2196f3';
+                target_tr.style.outlineOffset='-1px';
+
                 let part=link_href.split('/');
                 let search_id_new=part[part.length-2];
-                let search_id_box=document.querySelector('#search_id_box');
-                if(search_id_box){
-                    clear_line();
-                    target.style.outline='2px solid #2196f3';
-                    target.style.outlineOffset='-3px';
+                let search_id_box_=document.querySelector('#search_id_box_');
+                if(search_id_box_){
+                    let set_id_=document.querySelector('#navbox_ #set_id_');
+                    let set_ok_=document.querySelector('#navbox_ #set_ok_');
+                    let set_cancel_=document.querySelector('#navbox_ #set_cancel_');
+                    if(set_id_ && set_ok_ && set_cancel_){
+                        decision_(1);
+                        decision_str_(search_id_new);
 
-                    let set_id=document.querySelector('#navbox #set_id');
-                    let set_ok=document.querySelector('#navbox #set_ok');
-                    let set_cancel=document.querySelector('#navbox #set_cancel');
-                    if(set_id && set_ok && set_cancel){
-                        decision(1);
-
-                        let str=
-                            '<p><ic2>🔴</ic2> 検索対象のIDを変更します</P>'+
-                            '<p class="half">　</p>'+
-                            '<p>上枠のこれまでの検索対象のIDはリセットされます　'+
-                            '必要ならコピーして保存してください</P>'+
-                            '<p class="half">　</p>'+
-                            '<p>新しい検索対象のID： </P>'+
-                            '<p>'+ search_id_new +'</P>'+
-                            '<p class="half">　</p>'+
-                            '<p>「IDを設定する」を押すとIDを更新します　また、'+
-                            '検索経過を示す「青マーク」がリセットされます</P>';
-                        support(str);
-
-                        set_ok.onclick=()=>{
-                            decision(0);
+                        set_ok_.onclick=()=>{
+                            decision_(0);
                             search_id=search_id_new;
-                            search_id_box.textContent=search_id;
+                            search_id_box_.textContent=search_id;
                             document.cookie='Iine_ID='+ search_id +'; path=/; Max-Age=604800';
-                            end_set_id();
-                            clear_list_done();
-                            search_id_able=0;
-                            action.disabled=false;
-                            drive_mode='s'; } //「s」停止モード 再検索可能
+                            end_set_id_()
+                            search_id_able=0; }
 
-                        set_cancel.onclick=()=>{
-                            decision(0);
-                            clear_line();
-                            set_id.click(); }
+                        set_cancel_.onclick=()=>{
+                            decision_(0);
+                            clear_line_();
+                            set_id_.click(); }
 
-                    } // if(set_id && set_ok && set_cancel)
-                }}}
+                    } // if(set_id_ && set_ok_ && set_cancel_)
+                }}
 
-    } // get()
+        } // get_()
 
 
-    function clear_line(){
-        let item=document.querySelectorAll('#iineEntryListFrame .iineListItem');
-        for(let k=0; k<item.length; k++){
-            item[k].style.outline=''; }}
+        function clear_line_(){
+            let item=document.querySelectorAll('#iineHistoryUserFrame tr');
+            for(let k=0; k<item.length; k++){
+                item[k].style.outline=''; }}
 
 
-    function clear_list_done(){
-        list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
-        for(let k=0; k<list_bar.length; k++){
-            list_bar[k].classList.remove('done'); }} // リストの青バーを削除
+        function decision_str_(new_id){
+            let str=
+                '<p><ic2>🔴</ic2> 検索対象のIDを変更します</P>'+
+                '<p class="half">　</p>'+
+                '<p>新しい検索対象のID： </P>'+
+                '<p>'+ new_id +'</P>';
+            support_(str); }
 
-} // get_id()
-
-
-
-function decision(n){
-    let set_id=document.querySelector('#navbox #set_id');
-    let set_ok=document.querySelector('#navbox #set_ok');
-    let set_cancel=document.querySelector('#navbox #set_cancel');
-    if(set_id && set_ok && set_cancel){
-        if(n==0){
-            set_id.style.display='inline-block';
-            set_ok.style.display='none';
-            set_cancel.style.display='none'; }
-        else{
-            set_id.style.display='none';
-            set_ok.style.display='inline-block';
-            set_cancel.style.display='inline-block'; }}}
+    } // get_id_()
 
 
 
-user_blog();
+    function decision_(n){
+        let set_id_=document.querySelector('#navbox_ #set_id_');
+        let set_ok_=document.querySelector('#navbox_ #set_ok_');
+        let set_cancel_=document.querySelector('#navbox_ #set_cancel_');
+        if(set_id_ && set_ok_ && set_cancel_){
+            if(n==0){
+                set_id_.style.display='inline-block';
+                set_ok_.style.display='none';
+                set_cancel_.style.display='none'; }
+            else{
+                set_id_.style.display='none';
+                set_ok_.style.display='inline-block';
+                set_cancel_.style.display='inline-block'; }}
 
-function user_blog(){
-    document.addEventListener('contextmenu', function(event){
-        let elem=document.elementFromPoint(event.clientX, event.clientY);
-        if(elem){
-            let list_elem=elem.closest('li');
-            if(list_elem){
-                if(list_elem.classList.contains('iineListItem')){
-                    event.preventDefault();
-                    event.stopImmediatePropagation();
-                    get_blog(list_elem); }}}});
+    } // decision_(n)
 
-    function get_blog(target){
-        let link=target.querySelector('a');
-        if(link){
-            let link_href=link.getAttribute('href');
+
+
+    user_blog_();
+
+    function user_blog_(){
+        document.addEventListener('contextmenu', function(event){
+            let elem=document.elementFromPoint(event.clientX, event.clientY);
+            if(elem){
+                let tr_elem=elem.closest('tr');
+                if(tr_elem){
+                    let user_link=tr_elem.querySelector('.heading a');
+                    if(user_link){
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        get_blog(user_link); }}}});
+
+        function get_blog(target){
+            let link_href=target.getAttribute('href');
             if(link_href){
-                window.open(link_href, '_blank', 'noopener=yes,noreferrer=yes'); }}}
+                window.open(link_href, '_blank', 'noopener=yes,noreferrer=yes'); }}
 
-} // user_blog()
+    } // user_blog_()
 
+} // sub()
 
-
-user_blog_();
-
-function user_blog_(){
-    document.addEventListener('contextmenu', function(event){
-        let elem=document.elementFromPoint(event.clientX, event.clientY);
-        if(elem){
-            let tr_elem=elem.closest('tr');
-            if(tr_elem){
-                let user_img=tr_elem.querySelector('.list_img')
-                if(user_img){
-                    event.preventDefault();
-                    event.stopImmediatePropagation();
-                    get_blog(user_img); }}}});
-
-    function get_blog(target){
-        let link_href=target.getAttribute('href');
-        if(link_href){
-            window.open(link_href, '_blank', 'noopener=yes,noreferrer=yes'); }}
-
-} // user_blog_()
 
 
 
@@ -570,9 +800,9 @@ function get_cookie(name){
 
 /* ======== 履歴リスト全体の自動スクロール =========================*/
 
-let target0=document.head; // 監視 target
-let monitor0=new MutationObserver(end_more);
-monitor0.observe(target0, { childList: true }); // 監視開始
+let target2=document.head; // 監視 target2
+let monitor2=new MutationObserver(end_more);
+monitor2.observe(target2, { childList: true }); // 監視開始
 
 end_more();
 
@@ -585,10 +815,15 @@ function end_more(){
     if(list_frame){
         let style=
             '<style id="imute_style_r">'+
+            '#ucsContent { margin: 0 20px 0 auto; }'+
+            '.iineSetting { display: none; }'+
+
+            '.tabCategory { display: flex; justify-content: center; }'+
+            '.tabCategory li { margin: 0 10px; }'+
             '#iineHistoryContent table { position: relative; }'+
             '#iineHistoryContent tbody { overflow-y: scroll; margin-top: 34px; '+
             'height: calc( 100vh - 220px); border-bottom: 1px solid #ccc; display: block; '+
-            'padding-right: 12px; }'+
+            'padding-left: 8px; padding-right: 8px; }'+
             '.tableList th { width: inherit; font-size: 14px; padding: 8px 4px 6px; '+
             'text-align: center !important; background: #f4f4f4; }'+
             '#iineHistoryContent tr:first-child { position: absolute; z-index: 1; width: 786px; '+
@@ -602,12 +837,12 @@ function end_more(){
             'position: absolute; right: 10px; margin: 0; border: 1px solid #aaa; '+
             'padding: 3px 12px 1px; font: bold 14px Meiryo; color: #888; background: #fff; }'+
 
-            '.mask { opacity: 0.6; }'+
+            '.mask { opacity: 0.4; }'+
             '#iineEntryFrame { position: fixed; top: 8px !important; left: 380px !important; }'+
             '#iineEntryHeader .iineListHeaderText { white-space: nowrap; overflow-x: scroll; '+
             'scrollbar-width: none; }'+
             '#iineEntryContents { max-height: unset !important; height: calc(100vh - 56px); '+
-            'background: cadetblue; scrollbar-width: none; }'+
+            'background: #4b7778; scrollbar-width: none; }'+
             '.iineListItem { background: #d5e7ed; }'+
             '.iineListItem a { pointer-events: none; }'+ // いいね！された記事
             '#moreLinkBtm { visibility: hidden; }'+
@@ -656,11 +891,11 @@ function end_more(){
         function go(){
             let more=document.querySelector(abutton); // Moreボタン
             if(more && next==1 && active_check()){
-                monitor0.disconnect();
+                monitor2.disconnect();
                 more.click();
                 view_end();
                 senser=0;
-                monitor0.observe(target0, {childList: true, subtree: true}); }}
+                monitor2.observe(target2, {childList: true, subtree: true}); }}
 
         function stop(){
             if(senser>8){
@@ -691,9 +926,9 @@ function end_more(){
 
 /* ======== ダイアログ内のリストの自動スクロール =====================*/
 
-let target2=document.body; // 監視 target
-let monitor2=new MutationObserver(dialog);
-monitor2.observe(target2, { childList: true }); // 監視開始
+let target3=document.body; // 監視 target3
+let monitor3=new MutationObserver(dialog);
+monitor3.observe(target3, { childList: true }); // 監視開始
 
 
 function dialog(){
@@ -717,9 +952,9 @@ function dialog(){
         header_count.style.color="red"; }
 
 
-    monitor2.disconnect();
+    monitor3.disconnect();
     end_more_dia();
-    monitor2.observe(target2, {childList: true, subtree: true}); // 監視開始
+    monitor3.observe(target3, {childList: true, subtree: true}); // 監視開始
 
 } // blocker_dia_g()
 
