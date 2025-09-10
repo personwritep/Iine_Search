@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.0
+// @version        1.1
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -21,7 +21,7 @@ let list_bar; // 記事リストに読込んだ記事行の配列
 let next_target; // ページ内の次の対象記事
 let action;
 let l_pos; // パネルデザイン
-let help_url="https://ameblo.jp/personwritep/entry-12926930048.html";
+let help_url="https://ameblo.jp/personwritep/entry-12928418995.html";
 
 
 
@@ -66,6 +66,7 @@ function main(){
             '</div>'+
             '<div id="search_id_box">未設定</div>'+
             '<button id="action">検索を開始する</button>'+
+            '<div id="date_box">検索行の日付</div>'+
             '<div id="support"></div>'+
 
             '<style>'+
@@ -84,9 +85,13 @@ function main(){
             'border-radius: 4px; cursor: pointer; }'+
             '#set_ok { padding: 10px 12px 8px; display: none; }'+
             '#set_cancel { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
-            '#search_id_box { height: 24px; margin: 10px 0; padding: 3px 12px 1px; '+
-            'border: 1px solid #888; border-radius: 4px; background: #fff; '+
+            '#search_id_box, #date_box { height: 24px; '+
+            'border: 1px solid #888; border-radius: 4px; background: #fff; }'+
+            '#search_id_box { margin: 10px 0; padding: 3px 12px 1px; '+
             'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
+            '#action { position: relative; z-index: 1; white-space: nowrap; max-width: 280px; }'+
+            '#date_box { display: inline-block; padding: 3px 6px 1px; '+
+            'position: absolute; top: 112px; right: 20px; }'+
             '#support { min-height: 47px; margin: 20px 0 0; padding: 16px 12px 13px; '+
             'white-space: break-spaces; border-radius: 4px; background: #fff; display: none; }'+
             '#support ic1 { font-size: 24px; line-height: 16px; }'+
@@ -94,6 +99,7 @@ function main(){
             '#support .half { line-height: 0.5; }'+
 
             '.done { box-shadow: 9px 0 0 -1px #2196f3, -9px 0 0 -1px #2196f3; }'+
+            '.loading { background: unset; }'+
             '</style>'+
 
             '<style class="l_style">'+
@@ -176,7 +182,7 @@ function main(){
         function wild_search(k){
             if(search_id_able==0){
                 drive_mode='c'; // ページ内の連続処理
-                action.textContent='　検索を一旦停止　❚❚';
+                action.textContent='一旦停止　❚❚';
                 let str=
                     '<p>「❚❚」ボタンを押す：一旦停止</p>'+
                     '<p>「▶」ボタンを押す：検索再開</p>'+
@@ -261,18 +267,18 @@ function main(){
                     '<p>▶「一旦停止 ❚❚」ボタンを押すと</p>'+
                     '<p>　 検索停止 / 検索再開 ができます</p>';
                 support(str);
-                action.textContent='開始行を「Ctrl+Click」します';
+                action.textContent='検索を開始する行を「Ctrl+Click」';
                 close_dialog(); }
 
             else if(drive_mode=='c'){ // 連続動作状態の場合
                 drive_mode='p'; // クリックされたら「p」停止モード
-                action.textContent='　検索を再開する　▶';
-                not_set(0)
+                action.textContent='検索再開　▶';
+                not_set(0);
                 un_dark(); }
 
             else if(drive_mode=='p'){ // 動作停止状態の場合
                 drive_mode='c'; // クリックされたら連続動作を再開
-                action.textContent='　検索を一旦停止　❚❚';
+                action.textContent='一旦停止　❚❚';
                 not_set(1);
                 open_dialog(next_target); }
 
@@ -306,6 +312,7 @@ function main(){
         if(drive_mode=='c'){
             list_bar[k].classList.add('done'); // リストに青バーを表示
             list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
+            date_disp(list_bar[k]);
             list_bar[k].click();
 
 
@@ -316,7 +323,7 @@ function main(){
             setTimeout(()=>{
                 if(search_who()){
                     drive_mode='p'; //「p」停止モード
-                    action.textContent='　検索を再開する　▶';
+                    action.textContent='検索再開　▶';
                     not_set(0);
                     end_target(); }
                 else{
@@ -369,7 +376,7 @@ function main(){
                     else{
                         setTimeout(()=>{
                             drive_mode='s'; //「s」停止モード 再検索可能
-                            action.textContent='　検索を再開する　▶';
+                            action.textContent='検索再開　▶';
                             let str=
                                 '<p><ic2>⛔</ic2> リスト末尾まで検索しました</p>'+
                                 '<p class="half">　</p>'+
@@ -385,6 +392,14 @@ function main(){
         } // if(drive_mode=='c')
 
     } // open_dialog()
+
+
+
+    function date_disp(target){
+        let date_box=document.querySelector('#date_box');
+        let time=target.querySelector('time');
+        if(date_box && time){
+            date_box.textContent=time.textContent; }}
 
 
 
@@ -897,6 +912,7 @@ function end_more(){
                 senser=0;
                 monitor2.observe(target2, {childList: true, subtree: true}); }}
 
+
         function stop(){
             if(senser>8){
                 next=0;
@@ -904,18 +920,20 @@ function end_more(){
                 clearInterval(interval);
                 view_end(); }}
 
+
         function view_end(){
             let list_body=document.querySelector(ascroll_box +' tbody');
             if(list_body && active_check()){
                 list_body.scrollBy(0, 1000); }}
 
+
         function active_check(){
             let iine_Mask=document.querySelector('#iineEntryListMask');
-            let mask=window.getComputedStyle(iine_Mask).getPropertyValue('display');
-            if(mask=='block'){
-                return false; }
-            else{
-                return true; }}
+            if(iine_Mask){
+                if(iine_Mask.classList.contains('hide')){
+                    return true; }
+                else{
+                    return false; }}}
 
     } // auto_scroll()
 
@@ -980,73 +998,12 @@ function smart(){
 
 
 function end_more_dia(){
-    let senser=0;
-    let next=0;
-    let interval;
-    let list_body;
-
     setTimeout(()=>{
         let more=document.querySelector('#moreLinkBtm');
         let item=document.querySelectorAll('#iineEntryContents li');
         if(more && item.length<43){ // リストを可能なら52行まで開く 🔴🔴
             more.click();
         }}, 100);
-
-
-    document.addEventListener('keydown', function(event){
-        if(event.keyCode==32){
-            event.preventDefault();
-            event.stopImmediatePropagation();
-
-            list_body=document.querySelector('#iineEntryContents'); // scroll要素
-            if(list_body){
-                list_body.style.maxHeight='80vh'; }
-
-            if(next==0 && active_check()){
-                next=1;
-                interval=setInterval(
-                    function(){
-                        go();
-                        stop();
-                        senser+=1;
-                    }, 500); }
-            else{
-                next=0;
-                clearInterval(interval); }
-            setTimeout(()=>{
-                view_end(); }, 600); } // リスト末尾を表示
-
-        function go(){
-            let more=document.querySelector('#moreLinkBtm.moreBtm span'); // Moreボタン
-            if(more && next==1 && active_check()){
-                more.click();
-                senser=0; }}
-
-        function stop(){
-            if(senser>4){
-                next=0;
-                senser=0;
-                clearInterval(interval);
-                hide_disp(); }}
-
-        function hide_disp(){
-            view_end(); }});
-
-    function view_end(){
-        let list_body=document.querySelector('#iineEntryContents');
-        if(list_body && active_check()){
-            list_body.scrollBy(0, 1000); }}
-
-    function active_check(){
-        let iine_Mask=document.querySelector('#iineEntryListMask');
-        if(iine_Mask){
-            let mask=window.getComputedStyle(iine_Mask).getPropertyValue('display');
-            if(mask=='block'){
-                return true; } // いいね履歴 ブログページでON
-            else{
-                return false; }} // いいね履歴 ブログページでOFF
-        else{
-            return true; }} // 管理トップでは 常にON
 
 } //end_more_dia()
 
