@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.1
+// @version        1.2
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -289,6 +289,7 @@ function main(){
             if(event.keyCode==13){
                 event.preventDefault();
                 event.stopImmediatePropagation();
+                let action=document.querySelector('#navbox #action');
                 if(action){
                     action.click(); }}});
 
@@ -312,6 +313,7 @@ function main(){
         if(drive_mode=='c'){
             list_bar[k].classList.add('done'); // リストに青バーを表示
             list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
+
             date_disp(list_bar[k]);
             list_bar[k].click();
 
@@ -591,6 +593,7 @@ function sub(){
             '<button id="set_id_">検索対象のIDを設定</button>'+
             '<button id="set_ok_">IDを設定する</button>'+
             '<button id="set_cancel_">中止</button>'+
+            '<button id="sort_">Sort</button>'+
             '<div id="search_id_box_">未設定</div>'+
             '<div id="support_"></div>'+
 
@@ -599,11 +602,12 @@ function sub(){
             'font: normal 16px meiryo; color: #000; width: 280px; padding: 10px 20px; '+
             'border: 1px solid #888; border-radius: 4px; '+
             'background: #5bb4d8; box-shadow: 0 0 40px 0 #00000040; }'+
-            '#set_id_, #set_ok_, #set_cancel_ { font: normal 16px Meiryo; '+
+            '#set_id_, #set_ok_, #set_cancel_ , #sort_ { font: normal 16px Meiryo; '+
             'padding: 10px 16px 8px; background: #e4faff; border: 1px solid #888; '+
             'border-radius: 4px; cursor: pointer; }'+
             '#set_ok_ { padding: 10px 12px 8px; display: none; }'+
             '#set_cancel_ { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
+            '#sort_ { position: absolute; top: 10px; right: 20px; }'+
             '#search_id_box_ { height: 24px; margin: 10px 0; padding: 3px 12px 1px; '+
             'border: 1px solid #888; border-radius: 4px; background: #fff; '+
             'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
@@ -795,6 +799,61 @@ function sub(){
 
     } // user_blog_()
 
+
+
+    let sort_sw=document.querySelector('#sort_');
+    if(sort_sw){
+        sort_sw.onclick=()=>{
+            sort(); }}
+
+    function sort(){
+        window.getSelection().removeAllRanges();
+
+        let iine_arr=[];
+
+        let iine_tr=document.querySelectorAll('#iineHistoryUserFrame tr');
+        for(let k=1; k<iine_tr.length; k++){
+            let user_href;
+            let user_name;
+            let user_count;
+            let user_src=iine_tr[k].querySelector('.list_img img').getAttribute('src');
+            if(iine_tr[k].querySelector('.heading a')){
+                user_href=iine_tr[k].querySelector('.heading a').getAttribute('href');
+                user_name=iine_tr[k].querySelector('.heading a span').textContent;
+                user_count=parseInt(
+                    iine_tr[k].querySelector('.iineCnt').textContent.replace(/[^0-9]/g, ''), 10); }
+            else{ // 退会ユーザー
+                user_href='---';
+                user_name='---';
+                user_count=0; }
+
+            iine_arr.push([user_src, user_href, user_name, user_count]); } // データの配列化
+
+
+        iine_arr.sort((a, b)=>{
+            return b[b.length-1] - a[a.length-1] }) // user_count の降順にソート
+
+
+        let iine_table=document.querySelector('#iineHistoryUserFrame tbody');
+        let iine_r_tr=iine_table.querySelectorAll('tr');
+        for(let k=1; k<iine_r_tr.length; k++){
+            iine_r_tr[k].remove(); }
+
+
+        for(let k=0; k<iine_arr.length; k++){
+            let iine_tr=
+                '<tr>'+
+                '<td><b class="list_img"><img src="'+ iine_arr[k][0] +'"></b>'+
+                '<div class="list_main"><div class="heading"><a href="'+ iine_arr[k][1] +'">'+
+                '<span>'+ iine_arr[k][2] +'</span></a>'+
+                '</div></div></td><td class="iineCnt">'+ iine_arr[k][3] +'</td>'+
+                '</tr>';
+
+            if(iine_table.childElementCount<iine_r_tr.length){
+                iine_table.insertAdjacentHTML('beforeend', iine_tr); }} // 配列のtableへの再配置
+
+    } // sort()
+
 } // sub()
 
 
@@ -851,6 +910,9 @@ function end_more(){
             'content: "▢ Space: 連続スクロール / 停止"; '+
             'position: absolute; right: 10px; margin: 0; border: 1px solid #aaa; '+
             'padding: 3px 12px 1px; font: bold 14px Meiryo; color: #888; background: #fff; }'+
+            '#iineHistoryEntryFrame.listend:after, #iineHistoryUserFrame.listend:after { '+
+            'content: "全リストを読み込みました"; right: 300px; bottom: -12px; '+
+            'background: #fff600; }'+
 
             '.mask { opacity: 0.4; }'+
             '#iineEntryFrame { position: fixed; top: 8px !important; left: 380px !important; }'+
@@ -888,6 +950,7 @@ function end_more(){
                 event.stopImmediatePropagation(); }
 
             if(next==0 && active_check()){
+                act(0);
                 next=1;
                 interval=setInterval(
                     function(){
@@ -896,21 +959,25 @@ function end_more(){
                         senser+=1;
                     }, 500); }
             else{
+                act(1);
                 next=0;
                 clearInterval(interval); }
 
             setTimeout(()=>{
-                view_end();}, 600); } // リスト末尾を表示
+                view_end(); }, 600);
+
+        } // if(event.keyCode==32)
 
 
         function go(){
             let more=document.querySelector(abutton); // Moreボタン
-            if(more && next==1 && active_check()){
-                monitor2.disconnect();
-                more.click();
-                view_end();
-                senser=0;
-                monitor2.observe(target2, {childList: true, subtree: true}); }}
+            if(next==1 && active_check()){
+                if(more){
+                    monitor2.disconnect();
+                    more.click();
+                    view_end();
+                    senser=0;
+                    monitor2.observe(target2, {childList: true, subtree: true}); }}}
 
 
         function stop(){
@@ -918,13 +985,16 @@ function end_more(){
                 next=0;
                 senser=0;
                 clearInterval(interval);
-                view_end(); }}
+                view_end();
+                act(1);
+                list_end(); }}
 
 
         function view_end(){
             let list_body=document.querySelector(ascroll_box +' tbody');
             if(list_body && active_check()){
-                list_body.scrollBy(0, 1000); }}
+                let bottom=list_body.scrollHeight - list_body.clientHeight;
+                list_body.scroll(0, bottom); }}
 
 
         function active_check(){
@@ -934,6 +1004,22 @@ function end_more(){
                     return true; }
                 else{
                     return false; }}}
+
+
+        function list_end(){
+            let sc_box=document.querySelector(ascroll_box);
+            let more=document.querySelector(abutton);
+            if(sc_box && !more){
+                sc_box.classList.add('listend'); }}
+
+
+        function act(n){
+            let action=document.querySelector('#action');
+            if(action){
+                if(n==0){
+                    action.disabled=true; }
+                else{
+                    action.disabled=false; }}}
 
     } // auto_scroll()
 
@@ -1006,4 +1092,3 @@ function end_more_dia(){
         }}, 100);
 
 } //end_more_dia()
-
