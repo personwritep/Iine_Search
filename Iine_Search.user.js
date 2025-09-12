@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.2
+// @version        1.3
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -96,6 +96,7 @@ function main(){
             'white-space: break-spaces; border-radius: 4px; background: #fff; display: none; }'+
             '#support ic1 { font-size: 24px; line-height: 16px; }'+
             '#support ic2 { font-size: 20px; line-height: 16px; }'+
+            '#support ic3 { font-size: 18px; line-height: 16px; color: red; }'+
             '#support .half { line-height: 0.5; }'+
 
             '.done { box-shadow: 9px 0 0 -1px #2196f3, -9px 0 0 -1px #2196f3; }'+
@@ -282,6 +283,26 @@ function main(){
                 not_set(1);
                 open_dialog(next_target); }
 
+            else if(drive_mode=='e'){ // 動作停止状態の場合 リスト末尾
+                if(next_target<list_bar.length){
+                    drive_mode='c'; // クリックされたら連続動作を再開
+                    action.textContent='一旦停止　❚❚';
+                    let str=
+                        '<p>「❚❚」ボタンを押す：一旦停止</p>'+
+                        '<p>「▶」ボタンを押す：検索再開</p>'+
+                        '<p class="half">　</p>'+
+                        '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
+                        '<p> 　➔ その行から検索を開始</p>';
+                    support(str);
+                    not_set(1);
+                    open_dialog(next_target); }
+                else{
+                    let str=
+                        '<p><ic3>▶</ic3>「<b>Space</b>」キーを押して過去のリストを'+
+                        '追加して読み込むと、調査範囲を拡げて検索を再開できます</p>';
+                    support(str);
+                    close_dialog(); }}
+
         } // start_stop()
 
 
@@ -313,7 +334,6 @@ function main(){
         if(drive_mode=='c'){
             list_bar[k].classList.add('done'); // リストに青バーを表示
             list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
-
             date_disp(list_bar[k]);
             list_bar[k].click();
 
@@ -377,7 +397,7 @@ function main(){
                         open_dialog(next_target); }
                     else{
                         setTimeout(()=>{
-                            drive_mode='s'; //「s」停止モード 再検索可能
+                            drive_mode='e'; //「e」リスト末尾停止モード
                             action.textContent='検索再開　▶';
                             let str=
                                 '<p><ic2>⛔</ic2> リスト末尾まで検索しました</p>'+
@@ -964,7 +984,7 @@ function end_more(){
                 clearInterval(interval); }
 
             setTimeout(()=>{
-                view_end(); }, 600);
+                view_end();}, 600);
 
         } // if(event.keyCode==32)
 
