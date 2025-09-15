@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.3
+// @version        1.4
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -21,6 +21,7 @@ let list_bar; // 記事リストに読込んだ記事行の配列
 let next_target; // ページ内の次の対象記事
 let action;
 let l_pos; // パネルデザイン
+let io; // ダイアログデザイン
 let help_url="https://ameblo.jp/personwritep/entry-12928418995.html";
 
 
@@ -40,7 +41,6 @@ function mother(){
             document.querySelector('#navbox_').remove(); }
         drive_mode='s';
         search_id_able=0;
-        l_pos=0;
         main(); }
     else if(document.querySelector('#iineHistoryUserFrame')){
         if(document.querySelector('#navbox')){
@@ -63,6 +63,7 @@ function main(){
             '<div class="nav_in">'+
             '<button class="is_help nav_sw">？</button>'+
             '<button class="s_l nav_sw">▲</button>'+
+            '<button class="icon_only nav_sw">　</button>'+
             '</div>'+
             '<div id="search_id_box">未設定</div>'+
             '<button id="action">検索を開始する</button>'+
@@ -76,10 +77,11 @@ function main(){
             'background: #5bb4d8; box-shadow: 0 0 40px 0 #00000040; }'+
             '.nav_in { display: flex; position: absolute; top: 10px; right: 20px; }'+
             '.nav_sw { font: bold 20px Meiryo; text-indent: -2px; height: 30px; width: 30px; '+
-            'border: 1px solid #666; background: #ffffff50; cursor: pointer; }'+
+            'border: 1px solid #666; border-radius: 4px; background: #ffffff50; cursor: pointer; }'+
             '.is_help { line-height: 30px; border-radius: 40px; margin-right: 5px; }'+
             '.s_l { line-height: 28px; border-radius: 4px; }'+
-            '.is_help:hover, .s_l:hover { background: #fff; }'+
+            '.icon_only { position: absolute; top: 32px; right: 0; height: 12px; }'+
+            '.is_help:hover, .s_l:hover, .icon_only:hover { background: #fff; }'+
             '#set_id, #set_ok, #set_cancel, #action { font: normal 16px Meiryo; '+
             'padding: 10px 16px 8px; background: #e4faff; border: 1px solid #888; '+
             'border-radius: 4px; cursor: pointer; }'+
@@ -107,6 +109,26 @@ function main(){
             '#navbox { position: fixed; top: 50px; box-shadow: 0 20px 40px 0 #00000040; }'+
             '#support { display: block; }'+
             '</style>'+
+
+            '<style class="io_style">'+
+            '#iineEntryListMask { opacity: 0; }'+
+            '#iineEntryFrame { width: 612px !important; outline: 1px solid green; '+
+            'outline-offset: -1px; box-shadow: 0 0 40px 0 #00000040; }'+
+            '#iineEntryContents { height: auto; padding: 2px 6px 4px; background: #aecbd5; }'+
+            '#iineEntryListFrame { display: flex; flex-wrap: wrap; }'+
+            '.iineListItem { padding: 0 !important; font-size: 0; border: none !important; '+
+            'background: #aecbd5; }'+
+            '.iineListItem a { margin: 4px !important; '+
+            'outline-width: 3px !important; outline-offset: -1px !important; }'+
+            '.iineListImg { margin: 0; }'+
+            '.iineProfImg { height: 50px; width: 50px; }'+
+            '.iineProfImg img { height: 50px !important; width: 50px !important; }'+
+            '.iineListMain { display: none; }'+
+            '.iineListItem:nth-of-type(10n + 1) { padding-left: 4px; }'+
+            '.iineListItem:nth-of-type(10n) { padding-right: 4px; margin-right: -10px; }'+
+            '#iineEntryFoot { border: none; }'+
+            '</style>'+
+
             '</div>';
 
         if(!document.querySelector('#navbox')){
@@ -121,6 +143,16 @@ function main(){
         let s_l_sw=document.querySelector('.s_l.nav_sw');
         let l_style=document.querySelector('.l_style');
         if(s_l_sw && l_style){
+            let l_pos=get_cookie('Iine_l_pos');
+            if(l_pos==0){
+                s_l_sw.textContent='▲';
+                l_style.disabled=false; }
+            else{
+                l_pos=1;
+                s_l_sw.textContent='▼';
+                l_style.disabled=true; }
+            document.cookie='Iine_l_pos='+ l_pos +'; path=/; Max-Age=604800';
+
             s_l_sw.onclick=()=>{
                 if(l_pos==0){
                     l_pos=1;
@@ -129,7 +161,34 @@ function main(){
                 else{
                     l_pos=0;
                     s_l_sw.textContent='▲';
-                    l_style.disabled=false; }}}
+                    l_style.disabled=false; }
+                document.cookie='Iine_l_pos='+ l_pos +'; path=/; Max-Age=604800'; }}
+
+
+        let icon_only=document.querySelector('.icon_only');
+        let io_style=document.querySelector('.io_style');
+        if(icon_only && io_style){
+            let io=get_cookie('Iine_io');
+            if(io==0){
+                icon_only.style.background='';
+                io_style.disabled=true; }
+            else{
+                io=1;
+                icon_only.style.background='#00f4ff';
+                io_style.disabled=false; }
+            document.cookie='Iine_io='+ io +'; path=/; Max-Age=604800';
+
+            icon_only.onclick=()=>{
+                if(io==0){
+                    io=1;
+                    icon_only.style.background='#00f4ff';
+                    io_style.disabled=false; }
+                else{
+                    io=0;
+                    icon_only.style.background='';
+                    io_style.disabled=true; }
+                document.cookie='Iine_io='+ io +'; path=/; Max-Age=604800'; }}
+
 
         id_check();
 
