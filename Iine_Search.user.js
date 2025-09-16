@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.4
+// @version        1.5
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -101,7 +101,8 @@ function main(){
             '#support ic3 { font-size: 18px; line-height: 16px; color: red; }'+
             '#support .half { line-height: 0.5; }'+
 
-            '.done { box-shadow: 9px 0 0 -1px #2196f3, -9px 0 0 -1px #2196f3; }'+
+            '.done { box-shadow: 9px 0 0 -1px #8dc8f8, -9px 0 0 -1px #8dc8f8; }'+
+            '.have { box-shadow: 9px 0 0 -1px red, -9px 0 0 -1px red; }'+
             '.loading { background: unset; }'+
             '</style>'+
 
@@ -153,16 +154,19 @@ function main(){
                 l_style.disabled=true; }
             document.cookie='Iine_l_pos='+ l_pos +'; path=/; Max-Age=604800';
 
-            s_l_sw.onclick=()=>{
-                if(l_pos==0){
-                    l_pos=1;
-                    s_l_sw.textContent='▼';
-                    l_style.disabled=true; }
+            s_l_sw.onclick=(event)=>{
+                if(event.ctrlKey){
+                    window.scroll(0, 0); }
                 else{
-                    l_pos=0;
-                    s_l_sw.textContent='▲';
-                    l_style.disabled=false; }
-                document.cookie='Iine_l_pos='+ l_pos +'; path=/; Max-Age=604800'; }}
+                    if(l_pos==0){
+                        l_pos=1;
+                        s_l_sw.textContent='▼';
+                        l_style.disabled=true; }
+                    else{
+                        l_pos=0;
+                        s_l_sw.textContent='▲';
+                        l_style.disabled=false; }
+                    document.cookie='Iine_l_pos='+ l_pos +'; path=/; Max-Age=604800'; }}}
 
 
         let icon_only=document.querySelector('.icon_only');
@@ -392,7 +396,7 @@ function main(){
 
         if(drive_mode=='c'){
             list_bar[k].classList.add('done'); // リストに青バーを表示
-            list_bar[k].scrollIntoView({behavior: "smooth", block: "center"});
+            scroll_center(list_bar[k]);
             date_disp(list_bar[k]);
             list_bar[k].click();
 
@@ -403,6 +407,7 @@ function main(){
 
             setTimeout(()=>{
                 if(search_who()){
+                    list_bar[k].classList.add('have'); // リストに赤バーを表示
                     drive_mode='p'; //「p」停止モード
                     action.textContent='検索再開　▶';
                     not_set(0);
@@ -473,6 +478,14 @@ function main(){
         } // if(drive_mode=='c')
 
     } // open_dialog()
+
+
+
+    function scroll_center(target){
+        let iHC=document.querySelector('#iineHistoryContent tbody');
+        if(iHC){
+            let offsetTop=target.offsetTop - iHC.offsetTop - iHC.clientHeight/2;
+            iHC.scrollTo({top: offsetTop, left: 0, behavior: "smooth"}); }}
 
 
 
@@ -596,7 +609,8 @@ function main(){
         function clear_list_done(){
             list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
             for(let k=0; k<list_bar.length; k++){
-                list_bar[k].classList.remove('done'); }} // リストの青バーを削除
+                list_bar[k].classList.remove('done'); // リストの青バーを削除
+                list_bar[k].classList.remove('have'); }} // リストの赤バーを削除
 
 
         function decision_str(new_id){
@@ -974,8 +988,8 @@ function end_more(){
             '.tabCategory { display: flex; justify-content: center; }'+
             '.tabCategory li { margin: 0 10px; }'+
             '#iineHistoryContent table { position: relative; }'+
-            '#iineHistoryContent tbody { overflow-y: scroll; margin-top: 34px; '+
-            'height: calc( 100vh - 220px); border-bottom: 1px solid #ccc; display: block; '+
+            '#iineHistoryContent tbody { display: block; overflow-y: scroll; margin-top: 34px; '+
+            'height: calc( 100vh - 260px) !important; border-bottom: 1px solid #ccc; '+
             'padding-left: 8px; padding-right: 8px; }'+
             '.tableList th { width: inherit; font-size: 14px; padding: 8px 4px 6px; '+
             'text-align: center !important; background: #f4f4f4; }'+
@@ -1006,7 +1020,7 @@ function end_more(){
             '#iineHistoryUserFrame table tr a { pointer-events: none; }'+ // いいね！してくれた人
 
             '#footerAd, #globalFooter { display: none; }'+
-            'html { overflow: hidden; }'+
+            'html, body { overflow: hidden; }'+
             'html.noscroll { padding-right: 0 !important; }'+
             '</style>';
 
