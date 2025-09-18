@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.5
+// @version        1.6
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -681,6 +681,15 @@ function sub(){
     nav_();
 
     function nav_(){
+
+        let search_svg=
+            '<svg viewBox="0 0 512 512">'+
+            '<path d="M416 208c0 45.9-14.9 88.3-40 122.7L502.6 457.4c12.5 12.5 12.5 3'+
+            '2.8 0 45.3s-32.8 12.5-45.3 0L330.7 376c-34.4 25.2-76.8 40-122.7 40C93.1 '+
+            '416 0 322.9 0 208S93.1 0 208 0S416 93.1 416 208zM208 352a144 144 0 1 0 0'+
+            '-288 144 144 0 1 0 0 288z"/>'+
+            '</svg>';
+
         let nav_box_=
             '<div id="navbox_">'+
             '<button id="set_id_">検索対象のIDを設定</button>'+
@@ -688,6 +697,7 @@ function sub(){
             '<button id="set_cancel_">中止</button>'+
             '<button id="sort_">Sort</button>'+
             '<div id="search_id_box_">未設定</div>'+
+            '<button id="ask_">'+ search_svg +'</button>'+
             '<div id="support_"></div>'+
 
             '<style>'+
@@ -701,9 +711,12 @@ function sub(){
             '#set_ok_ { padding: 10px 12px 8px; display: none; }'+
             '#set_cancel_ { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
             '#sort_ { position: absolute; top: 10px; right: 20px; }'+
-            '#search_id_box_ { height: 24px; margin: 10px 0; padding: 3px 12px 1px; '+
+            '#search_id_box_ { height: 24px; margin: 10px 0; padding: 3px 38px 1px 12px; '+
             'border: 1px solid #888; border-radius: 4px; background: #fff; '+
             'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
+            '#ask_ { position: absolute; top: 67px; right: 28px; padding: 3px 3px 0; '+
+            'border: 1px solid #777; border-radius: 4px; background: #9df5da; cursor: pointer; }'+
+            '#ask_ svg{ width: 16px; height: 16px; }'+
             '#support_ { min-height: 24px; margin: 20px 0 0; padding: 16px 12px 13px; '+
             'white-space: break-spaces; border-radius: 4px; background: #fff; }'+
             '#support_ ic2 { font-size: 20px; line-height: 16px; }'+
@@ -909,22 +922,27 @@ function sub(){
             let user_href;
             let user_name;
             let user_count;
+            let user_id;
             let user_src=iine_tr[k].querySelector('.list_img img').getAttribute('src');
             if(iine_tr[k].querySelector('.heading a')){
                 user_href=iine_tr[k].querySelector('.heading a').getAttribute('href');
+                if(user_href){
+                    let part=user_href.split('/');
+                    user_id=part[part.length-2]; }
                 user_name=iine_tr[k].querySelector('.heading a span').textContent;
                 user_count=parseInt(
                     iine_tr[k].querySelector('.iineCnt').textContent.replace(/[^0-9]/g, ''), 10); }
             else{ // 退会ユーザー
                 user_href='---';
                 user_name='---';
-                user_count=0; }
+                user_count=0;
+                user_id='---'; }
 
-            iine_arr.push([user_src, user_href, user_name, user_count]); } // データの配列化
+            iine_arr.push([user_src, user_href, user_name, user_count, user_id]); } // データの配列化
 
 
         iine_arr.sort((a, b)=>{
-            return b[b.length-1] - a[a.length-1] }) // user_count の降順にソート
+            return b[b.length-2] - a[a.length-2] }) // user_count の降順にソート
 
 
         let iine_table=document.querySelector('#iineHistoryUserFrame tbody');
@@ -936,16 +954,56 @@ function sub(){
         for(let k=0; k<iine_arr.length; k++){
             let iine_tr=
                 '<tr>'+
-                '<td><b class="list_img"><img src="'+ iine_arr[k][0] +'"></b>'+
-                '<div class="list_main"><div class="heading"><a href="'+ iine_arr[k][1] +'">'+
-                '<span>'+ iine_arr[k][2] +'</span></a>'+
-                '</div></div></td><td class="iineCnt">'+ iine_arr[k][3] +'</td>'+
+                '<td class="is"><b class="list_img"><img src="'+ iine_arr[k][0] +'"></b>'+
+                '<div class="list_main"><div class="is heading"><a href="'+ iine_arr[k][1] +'">'+
+                '<span>'+ iine_arr[k][2] +'</span>'+
+                '<span class="is_id">'+ iine_arr[k][4] +'</span></a>'+
+                '</div></div></td>'+
+                '<td class="is iineCnt">'+ iine_arr[k][3] +'</td>'+
                 '</tr>';
 
             if(iine_table.childElementCount<iine_r_tr.length){
                 iine_table.insertAdjacentHTML('beforeend', iine_tr); }} // 配列のtableへの再配置
 
     } // sort()
+
+
+
+    let ask_sw=document.querySelector('#ask_');
+    if(ask_sw){
+        ask_sw.onclick=()=>{
+            ask(); }}
+
+    function ask(){
+        let search_id;
+        let box=document.querySelector('#search_id_box_');
+        if(box){
+            search_id=box.textContent;
+
+            let iHUF=document.querySelectorAll('#iineHistoryUserFrame tr');
+            for(let k=0; k<iHUF.length; k++){
+                let user_link=iHUF[k].querySelector('.heading a');
+                if(user_link){
+                    let link_href=user_link.getAttribute('href');
+                    if(link_href && search_id){
+                        if(link_href.includes(search_id)){
+                            iHUF[k].style.outline='2px solid #00cf8e';
+                            iHUF[k].style.outlineOffset='-1px';
+                            scroll_center_(iHUF[k]);
+                            let str=
+                                '<p><ic2>🟢</ic2> 検索対象のIDのユーザー行に</p>'+
+                                '<p>　　緑枠を表示しました</p>';
+                            support_(str); }}}}}
+
+    } // ask()
+
+
+
+    function scroll_center_(target){
+        let iHC=document.querySelector('#iineHistoryUserFrame tbody');
+        if(iHC){
+            let offsetTop=target.offsetTop - iHC.offsetTop - iHC.clientHeight/2;
+            iHC.scrollTo({top: offsetTop, left: 0, behavior: "smooth"}); }}
 
 } // sub()
 
@@ -982,7 +1040,7 @@ function end_more(){
     if(list_frame){
         let style=
             '<style id="imute_style_r">'+
-            '#ucsContent { margin: 0 20px 0 auto; }'+
+            '#ucsContent { margin: 0 20px 0 auto; height: 100vh; }'+
             '.iineSetting { display: none; }'+
 
             '.tabCategory { display: flex; justify-content: center; }'+
@@ -1018,6 +1076,11 @@ function end_more(){
             '#moreLinkBtm { visibility: hidden; }'+
 
             '#iineHistoryUserFrame table tr a { pointer-events: none; }'+ // いいね！してくれた人
+
+            '#iineHistoryUserFrame .is.heading { position: relative; margin-top: 12px; }'+
+            '#iineHistoryUserFrame .is_id { position: absolute; top: -2px; left: 320px; '+
+            'font: normal 16px / 20px Meiryo; padding: 2px 20px 1px; background: #eef1f3; '+
+            'width: 210px; border-left: solid 20px #fff; border-right: solid 40px #fff; }'+
 
             '#footerAd, #globalFooter { display: none; }'+
             'html, body { overflow: hidden; }'+
