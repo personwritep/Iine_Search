@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.6
+// @version        1.7
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -284,6 +284,15 @@ function main(){
                         '<p>　</p>'+
                         '<p>操作を中止して元の状態に戻るには「IDの設定を中止」を押します</P>';
                     support(str);
+
+                    let search_id_box=document.querySelector('#search_id_box');
+                    if(search_id_box){
+                        search_id=get_cookie('Iine_ID');
+                        if(search_id!=0){
+                            search_id_box.textContent=search_id; }
+                        else{
+                            search_id_box.textContent="未設定"; }}
+
                     get_id(); }
                 else{
                     search_id_able=0;
@@ -783,6 +792,15 @@ function sub(){
                         '<p>検索対象に設定するユーザーの行を</P>'+
                         '<p>「<b>Click</b>」します</P>';
                     support_(str);
+
+                    let search_id_box_=document.querySelector('#search_id_box_');
+                    if(search_id_box_){
+                        search_id=get_cookie('Iine_ID');
+                        if(search_id!=0){
+                            search_id_box_.textContent=search_id; }
+                        else{
+                            search_id_box_.textContent="未設定"; }}
+
                     get_id_(); }
                 else{
                     search_id_able=0;
@@ -975,6 +993,7 @@ function sub(){
             ask(); }}
 
     function ask(){
+        let find=0;
         let search_id;
         let box=document.querySelector('#search_id_box_');
         if(box){
@@ -987,13 +1006,26 @@ function sub(){
                     let link_href=user_link.getAttribute('href');
                     if(link_href && search_id){
                         if(link_href.includes(search_id)){
+                            find=1;
                             iHUF[k].style.outline='2px solid #00cf8e';
                             iHUF[k].style.outlineOffset='-1px';
                             scroll_center_(iHUF[k]);
                             let str=
                                 '<p><ic2>🟢</ic2> 検索対象のIDのユーザー行に</p>'+
                                 '<p>　　緑枠を表示しました</p>';
-                            support_(str); }}}}}
+                            support_(str); }}}}
+
+            if(find==0){ // 検索にヒットしなかった場合
+                let str=
+                    '<p><ic2>🔴</ic2> 検索対象は見つかりません</p>'+
+                    '<p class="half">　</p>'+
+                    '<p>▪全リストの読込みを試して下さい</p>'+
+                    '<p>▪データの範囲は最近の90日です</p>';
+                support_(str);
+
+                setTimeout(()=>{
+                    id_check_();
+                }, 4000); }}
 
     } // ask()
 
