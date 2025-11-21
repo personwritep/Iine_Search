@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.8
+// @version        1.9
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -51,6 +51,7 @@ function mother(){
 
 
 function main(){
+    let vol; // beep音量
 
     nav();
 
@@ -63,6 +64,7 @@ function main(){
             '<div class="nav_in">'+
             '<button class="is_help nav_sw">？</button>'+
             '<button class="s_l nav_sw">▲</button>'+
+            '<input class="vol_s" type="range" min="0" max="1" step="0.1">'+
             '<button class="icon_only nav_sw">　</button>'+
             '</div>'+
             '<div id="search_id_box">未設定</div>'+
@@ -80,6 +82,13 @@ function main(){
             'border: 1px solid #666; border-radius: 4px; background: #ffffff50; cursor: pointer; }'+
             '.is_help { line-height: 30px; border-radius: 40px; margin-right: 5px; }'+
             '.s_l { line-height: 28px; border-radius: 4px; }'+
+            '.vol_s { position: absolute; top: 38px; right: 35px; width: 30px; height: 1px; appearance: none; }'+
+            '.vol_s::-webkit-slider-thumb { -webkit-appearance: none; '+
+            'width: 8px; height: 13px; background: #8ecce4; border: 1px solid #666; '+
+            'border-radius: 4px; box-sizing: border-box; }'+
+            '.vol_s::-moz-range-thumb { '+
+            'width: 8px; height: 13px; background: #8ecce4; border: 1px solid #666; '+
+            'border-radius: 4px; box-sizing: border-box; }'+
             '.icon_only { position: absolute; top: 32px; right: 0; height: 12px; }'+
             '.is_help:hover, .s_l:hover, .icon_only:hover { background: #fff; }'+
             '#set_id, #set_ok, #set_cancel, #action { font: normal 16px Meiryo; '+
@@ -167,6 +176,17 @@ function main(){
                         s_l_sw.textContent='▲';
                         l_style.disabled=false; }
                     document.cookie='Iine_l_pos='+ l_pos +'; path=/; Max-Age=604800'; }}}
+
+
+        let vol_s=document.querySelector('.vol_s');
+        if(vol_s){
+            vol=get_cookie('Iine_vol');
+            vol_s.value=vol;
+            document.cookie='Iine_vol='+ vol +'; path=/; Max-Age=604800';
+
+            vol_s.addEventListener('input', function(){
+                vol=vol_s.value;
+                document.cookie='Iine_vol='+ vol +'; path=/; Max-Age=604800'; }); }
 
 
         let icon_only=document.querySelector('.icon_only');
@@ -397,6 +417,7 @@ function main(){
                         '<p><ic3>▶</ic3>「<b>Space</b>」キーを押して過去のリストを'+
                         '追加して読み込むと、調査範囲を拡げて検索を再開できます</p>';
                     support(str);
+                    beep(0);
                     close_dialog(); }}
 
         } // start_stop()
@@ -444,7 +465,8 @@ function main(){
                     drive_mode='p'; //「p」停止モード
                     action.textContent='検索再開　▶';
                     not_set(0);
-                    end_target(); }
+                    end_target();
+                    beep(1); }
                 else{
                     close_dialog();
                     dark();
@@ -502,6 +524,7 @@ function main(){
                                 '<p>「<b>Space</b>」キーを押して更に過去のリストを読み込み、'+
                                 '調査範囲を拡げて検索を再開できます</p>';
                             support(str);
+                            beep(1);
                             not_set(0);
                             un_dark();
                         },200); }}
@@ -511,6 +534,25 @@ function main(){
         } // if(drive_mode=='c')
 
     } // open_dialog()
+
+
+
+
+    function beep(n){
+        let b_vol;
+        if(n==0){
+            b_vol=vol/2; }
+        else{
+            b_vol=vol; }
+        let context=new AudioContext();
+        let o=context.createOscillator();
+        let g=context.createGain();
+        o.frequency.value=1000;
+        o.connect(g);
+        g.connect(context.destination);
+        g.gain.setValueAtTime(b_vol, context.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 2);
+        o.start(0); }
 
 
 
