@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        1.9
+// @version        2.0
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -22,6 +22,7 @@ let next_target; // ページ内の次の対象記事
 let action;
 let l_pos; // パネルデザイン
 let io; // ダイアログデザイン
+let vol; // beep音量
 let help_url="https://ameblo.jp/personwritep/entry-12928418995.html";
 
 
@@ -51,8 +52,6 @@ function mother(){
 
 
 function main(){
-    let vol; // beep音量
-
     nav();
 
     function nav(){
@@ -214,13 +213,6 @@ function main(){
                 document.cookie='Iine_io='+ io +'; path=/; Max-Age=604800'; }}
 
 
-        id_check();
-
-    } // nav()
-
-
-
-    function id_check(){
         let search_id_box=document.querySelector('#search_id_box');
         if(search_id_box){
             search_id=get_cookie('Iine_ID');
@@ -239,7 +231,7 @@ function main(){
                     '<p>検索を機能させるには、検索対象のユーザーIDの設定が必要です</p>';
                 support(str); }}
 
-    } // id_check()
+    } // nav()
 
 
 
@@ -251,7 +243,6 @@ function main(){
 
             clicked_item(); }
     }, 1000);
-
 
 
     function clicked_item(){
@@ -400,25 +391,17 @@ function main(){
                 open_dialog(next_target); }
 
             else if(drive_mode=='e'){ // 動作停止状態の場合 リスト末尾
-                if(next_target<list_bar.length){
-                    drive_mode='c'; // クリックされたら連続動作を再開
-                    action.textContent='一旦停止　❚❚';
-                    let str=
-                        '<p>「❚❚」ボタンを押す：一旦停止</p>'+
-                        '<p>「▶」ボタンを押す：検索再開</p>'+
-                        '<p class="half">　</p>'+
-                        '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
-                        '<p> 　➔ その行から検索を開始</p>';
-                    support(str);
-                    not_set(1);
-                    open_dialog(next_target); }
-                else{
-                    let str=
-                        '<p><ic3>▶</ic3>「<b>Space</b>」キーを押して過去のリストを'+
-                        '追加して読み込むと、調査範囲を拡げて検索を再開できます</p>';
-                    support(str);
-                    beep(0);
-                    close_dialog(); }}
+                drive_mode='c'; // クリックされたら連続動作を再開
+                action.textContent='一旦停止　❚❚';
+                let str=
+                    '<p>「❚❚」ボタンを押す：一旦停止</p>'+
+                    '<p>「▶」ボタンを押す：検索再開</p>'+
+                    '<p class="half">　</p>'+
+                    '<p> 任意のリスト行を「<b>Ctrl+Click</b>」</p>'+
+                    '<p> 　➔ その行から検索を開始</p>';
+                support(str);
+                not_set(1);
+                open_dialog(next_target); }
 
         } // start_stop()
 
@@ -466,7 +449,7 @@ function main(){
                     action.textContent='検索再開　▶';
                     not_set(0);
                     end_target();
-                    beep(1); }
+                    beep(); }
                 else{
                     close_dialog();
                     dark();
@@ -515,44 +498,53 @@ function main(){
                     if(next_target<list_bar.length){
                         open_dialog(next_target); }
                     else{
-                        setTimeout(()=>{
+                        let more=document.querySelector('#moreEntryLink'); // Moreボタン
+                        if(more){
+                            more.click();
+
+                            let retry=0;
+                            let interval=setInterval(wait_target, 100);
+                            function wait_target(){
+                                retry++;
+                                if(retry>40){ // 4sec待機
+                                    err(); // 次リストの読込み不可
+                                    clearInterval(interval); }
+                                list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
+                                if(next_target<list_bar.length){ // 次リストの読込み完了
+                                    clearInterval(interval);
+                                    open_dialog(next_target); }}
+
+                            function err(){
+                                drive_mode='e'; //「e」リスト末尾停止モード
+                                action.textContent='検索再開　▶';
+                                let str=
+                                    '<p><ic2>💢</ic2> 履歴データ 読み込みエラー</p>';
+                                support(str);
+                                beep();
+                                not_set(0);
+                                un_dark(); }}
+
+                        else{ // 履歴の末尾でmoreボタンが無い
                             drive_mode='e'; //「e」リスト末尾停止モード
                             action.textContent='検索再開　▶';
                             let str=
-                                '<p><ic2>⛔</ic2> リスト末尾まで検索しました</p>'+
+                                '<p><ic2>⛔</ic2> 履歴の末尾まで検索しました</p>'+
                                 '<p class="half">　</p>'+
-                                '<p>「<b>Space</b>」キーを押して更に過去のリストを読み込み、'+
-                                '調査範囲を拡げて検索を再開できます</p>';
+                                '<p> リスト行を「<b>Ctrl+Click</b>」すれば</p>'+
+                                '<p> その行から検索を再開できます</p>';
                             support(str);
-                            beep(1);
+                            action.textContent='検索を開始する行を「Ctrl+Click」';
+                            beep();
                             not_set(0);
-                            un_dark();
-                        },200); }}
+                            un_dark(); }}
+
+                } // next_do()
 
             } // end_target()
 
         } // if(drive_mode=='c')
 
     } // open_dialog()
-
-
-
-
-    function beep(n){
-        let b_vol;
-        if(n==0){
-            b_vol=vol/2; }
-        else{
-            b_vol=vol; }
-        let context=new AudioContext();
-        let o=context.createOscillator();
-        let g=context.createGain();
-        o.frequency.value=1000;
-        o.connect(g);
-        g.connect(context.destination);
-        g.gain.setValueAtTime(b_vol, context.currentTime);
-        g.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 2);
-        o.start(0); }
 
 
 
@@ -762,7 +754,6 @@ function main(){
 
 
 function sub(){
-
     nav_();
 
     function nav_(){
@@ -1143,6 +1134,8 @@ function sub(){
 
 
 
+/* ======== 共通関数  ======================================*/
+
 function get_cookie(name){
     let cookie_req=document.cookie.split('; ').find(row=>row.startsWith(name));
     if(cookie_req){
@@ -1152,6 +1145,19 @@ function get_cookie(name){
             return cookie_req.split('=')[1]; }}
     if(!cookie_req){
         return 0; }}
+
+
+
+function beep(){
+    let context=new AudioContext();
+    let o=context.createOscillator();
+    let g=context.createGain();
+    o.frequency.value=1000;
+    o.connect(g);
+    g.connect(context.destination);
+    g.gain.setValueAtTime(vol, context.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.00001, context.currentTime + 2);
+    o.start(0); }
 
 
 
@@ -1299,6 +1305,7 @@ function end_more(){
             let sc_box=document.querySelector(ascroll_box);
             let more=document.querySelector(abutton);
             if(sc_box && !more){
+                beep();
                 sc_box.classList.add('listend'); }}
 
 
