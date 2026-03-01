@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        2.0
+// @version        2.1
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -52,6 +52,7 @@ function mother(){
 
 
 function main(){
+    let m_count=0; // mainでの発見数
     nav();
 
     function nav(){
@@ -67,6 +68,7 @@ function main(){
             '<button class="icon_only nav_sw">　</button>'+
             '</div>'+
             '<div id="search_id_box">未設定</div>'+
+            '<div id="main_count"></div>'+
             '<button id="action">検索を開始する</button>'+
             '<div id="date_box">検索行の日付</div>'+
             '<div id="support"></div>'+
@@ -97,8 +99,9 @@ function main(){
             '#set_cancel { padding: 10px 12px 8px; margin-left: 6px; display: none; }'+
             '#search_id_box, #date_box { height: 24px; '+
             'border: 1px solid #888; border-radius: 4px; background: #fff; }'+
-            '#search_id_box { margin: 10px 0; padding: 3px 12px 1px; '+
+            '#search_id_box { margin: 10px 0; padding: 3px 32px 1px 12px; '+
             'white-space: nowrap; overflow-x: scroll; scrollbar-width: none; }'+
+            '#main_count { position: absolute; top: 68px; right: 30px; font: 16px Meiryo; }'+
             '#action { position: relative; z-index: 1; white-space: nowrap; max-width: 280px; }'+
             '#date_box { display: inline-block; padding: 3px 6px 1px; '+
             'position: absolute; top: 112px; right: 20px; }'+
@@ -137,7 +140,6 @@ function main(){
             '.iineListItem:nth-of-type(10n) { padding-right: 4px; margin-right: -10px; }'+
             '#iineEntryFoot { border: none; }'+
             '</style>'+
-
             '</div>';
 
         if(!document.querySelector('#navbox')){
@@ -437,7 +439,6 @@ function main(){
             date_disp(list_bar[k]);
             list_bar[k].click();
 
-
             setTimeout(()=>{
                 clear_frame();
             }, 100);
@@ -445,6 +446,7 @@ function main(){
             setTimeout(()=>{
                 if(search_who()){
                     list_bar[k].classList.add('have'); // リストに赤バーを表示
+                    disp_m_count();
                     drive_mode='p'; //「p」停止モード
                     action.textContent='検索再開　▶';
                     not_set(0);
@@ -553,6 +555,14 @@ function main(){
         if(iHC){
             let offsetTop=target.offsetTop - iHC.offsetTop - iHC.clientHeight/2;
             iHC.scrollTo({top: offsetTop, left: 0, behavior: "smooth"}); }}
+
+
+
+    function disp_m_count(){
+        let have_all=document.querySelectorAll('.have');
+        let main_count=document.querySelector('#main_count');
+        if(main_count){
+            main_count.textContent=have_all.length; }}
 
 
 
@@ -680,7 +690,9 @@ function main(){
         list_bar=document.querySelectorAll('.tableList .iineEntryCnt');
         for(let k=0; k<list_bar.length; k++){
             list_bar[k].classList.remove('done'); // リストの青バーを削除
-            list_bar[k].classList.remove('have'); }} // リストの赤バーを削除
+            list_bar[k].classList.remove('have'); } // リストの赤バーを削除
+
+        disp_m_count(); } // mainのカウントをリセット
 
 
     function decision_str(new_id, n){
