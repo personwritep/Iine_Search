@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Iine Search
 // @namespace        http://tampermonkey.net/
-// @version        2.2
+// @version        2.3
 // @description        「いいね！された記事」の過去のアクション検索
 // @author        Ameba Blog User
 // @match        https://blog.ameba.jp/ucs/iine/list.html
@@ -1170,13 +1170,17 @@ function sub(){
 /* ======== 共通関数  ======================================*/
 
 function get_cookie(name){
-    let cookie_req=document.cookie.split('; ').find(row=>row.startsWith(name));
-    if(cookie_req){
-        if(cookie_req.split('=')[1]==null){
+    let cookie_req=document.cookie.split(';');
+    for(let k=0; k<cookie_req.length; k++){
+        cookie_req[k]=cookie_req[k].trim(); } // 前後の空白を削除
+
+    let cookie=cookie_req.find(row=>row.startsWith(name+'='));
+    if(cookie){
+        if(cookie.split('=')[1]==null){
             return 0; }
         else{
-            return cookie_req.split('=')[1]; }}
-    if(!cookie_req){
+            return cookie.split('=')[1]; }}
+    if(!cookie){
         return 0; }}
 
 
